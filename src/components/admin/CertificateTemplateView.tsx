@@ -39,7 +39,7 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
           </div>
           <div className="as-field">
             <label className="as-label" htmlFor="cert-trainer">Trainer signature</label>
-            <input id="cert-trainer" className="as-input" value={trainerSig} onChange={(e) => setTrainerSig(e.target.value)} placeholder="Jefrey Tatoy" />
+            <input id="cert-trainer" className="as-input" value={trainerSig} onChange={(e) => setTrainerSig(e.target.value)} placeholder="Course trainer name" />
           </div>
           <div className="as-field">
             <label className="as-label" htmlFor="cert-admin">Verified by</label>
@@ -61,7 +61,7 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
         <p className="as-card-desc" style={{ marginBottom: '1rem' }}>How a certificate will look when issued.</p>
         <div className="as-cert-frame">
           <img src="/Certificate.png" alt="Certificate template" style={{ width: '100%', height: 'auto', display: 'block', userSelect: 'none' }} />
-          <div className="as-cert-overlay" style={{ top: '31%', left: '50%', width: '68%' }}>
+          <div className="as-cert-overlay" style={{ top: '33%', left: '50%', width: '68%' }}>
             <span style={{ fontSize: 'clamp(1rem, 2.5vw, 1.7rem)', fontWeight: 700, color: '#be185d', lineHeight: 1.15 }}>
               {sampleRecipient || 'Jessica Taylor'}
             </span> 
@@ -72,7 +72,7 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
             </span>
           </div>
           <div className="as-cert-overlay" style={{ top: '82.5%', left: '26%', width: '24%' }}>
-            <span style={{ fontSize: 'clamp(0.5rem, 1vw, 0.7rem)', fontWeight: 600, color: '#111827' }}>{trainerSig || 'Jefrey Tatoy'}</span>
+            <span style={{ fontSize: 'clamp(0.5rem, 1vw, 0.7rem)', fontWeight: 600, color: '#111827' }}>{trainerSig || 'Koruna Academy Trainer'}</span>
           </div>
           <div className="as-cert-overlay" style={{ top: '82.5%', left: '50%', width: '28%' }}>
             <span style={{ fontSize: 'clamp(0.5rem, 1vw, 0.7rem)', fontWeight: 600, color: '#111827' }}>KA-ML2-2026-849201</span>

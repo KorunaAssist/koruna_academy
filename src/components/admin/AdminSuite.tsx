@@ -259,7 +259,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
   departments,
   permissions,
   settings,
-  teamProgress: _teamProgress,
+  teamProgress,
   activeInnerTab,
   setActiveInnerTab,
   editingCourseId,
@@ -298,7 +298,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
 }) => {
   // Certificate designer
   const [certHeader, setCertHeader] = React.useState('Koruna Financial Academy');
-  const [trainerSig, setTrainerSig] = React.useState(userSession.name || 'Dr. Marcus Vance');
+  const [trainerSig, setTrainerSig] = React.useState(userSession.name || 'Koruna Academy Trainer');
   const [adminSig, setAdminSig] = React.useState('Global Admin');
   const [sampleRecipient, setSampleRecipient] = React.useState('Jessica Taylor');
   const [sampleCourseTitle, setSampleCourseTitle] = React.useState('Loan Processing & Underwriting');
@@ -315,6 +315,13 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
   const categories = ['All', ...Array.from(new Set(coursesOnly.map(c => c.category)))];
   const docCategories = ['All', ...Array.from(new Set(documentsOnly.map(c => c.category)))];
   const totalHours = dbService.getProgressList().reduce((sum, p) => sum + (p.learningHours || 0), 0);
+  const trainerAllowedTabs = React.useMemo(() => new Set(['creator', 'inventory', 'certificate_templates', 'assignments']), []);
+
+  React.useEffect(() => {
+    if (userSession.role === 'trainer' && !trainerAllowedTabs.has(activeInnerTab)) {
+      setActiveInnerTab('creator');
+    }
+  }, [activeInnerTab, setActiveInnerTab, trainerAllowedTabs, userSession.role]);
 
   const resetCourseFormState = () => {
     const defaultDueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -480,6 +487,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
           users={users}
           courses={courses}
           handleAssignCourse={handleAssignCourse}
+          teamProgress={teamProgress}
+          departments={departments}
         />
       )}
 

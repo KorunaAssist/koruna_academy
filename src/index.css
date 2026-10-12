@@ -1006,13 +1006,13 @@ body {
 }
 
 .koruna-sidebar {
-  width: 240px;
+  width: 225px;
   height: 100%;
-  background-color: var(--koruna-dark-bg);
+  background-color: #1d1d1f;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid #1f1f23;
+  border-right: 1px solid #2e2e31;
   transition: all 0.3s ease;
 }
 
@@ -1025,33 +1025,38 @@ body {
 }
 
 .koruna-sidebar-header {
-  padding: 1.25rem 0.85rem 1rem 0.85rem;
+  min-height: 108px;
+  padding: 1.75rem 1rem 1.45rem;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  border-bottom: 1px solid #1f1f23;
+  border-bottom: 1px solid #303033;
 }
 
 .koruna-sidebar-logo-img {
-  height: 32px;
+  height: 72px;
+  max-width: 152px;
   width: auto;
+  object-fit: contain;
 }
 
 .koruna-sidebar-menu {
   flex: 1;
-  padding: 0.85rem 0.5rem;
+  padding: 1.55rem 1rem 0.85rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.6rem;
 }
 
 .koruna-sidebar-item {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.65rem;
-  color: #a1a1aa;
+  gap: 1rem;
+  min-height: 34px;
+  padding: 0.48rem 0.85rem;
+  color: #d5d5d8;
   font-family: 'Inter', sans-serif;
   font-size: 13.5px;
   font-weight: 400;
@@ -1059,7 +1064,7 @@ body {
   line-height: 125%;
   letter-spacing: 0;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
   border: none;
   background: transparent;
@@ -1078,14 +1083,21 @@ body {
 }
 
 .koruna-sidebar-item:hover {
-  background-color: var(--koruna-dark-item-hover);
+  background-color: #29292c;
   color: #ffffff;
 }
 
 .koruna-sidebar-item.active {
-  background-color: var(--koruna-dark-item-active);
+  background-color: #AF1F60;
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+button.koruna-sidebar-item.active,
+button.koruna-sidebar-item[aria-current="page"] {
+  background-color: #AF1F60;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .koruna-sidebar-item-icon {
@@ -1093,14 +1105,20 @@ body {
   height: 18px;
   object-fit: contain;
   flex-shrink: 0;
+  color: #9d9da3;
+  stroke-width: 1.75;
+}
+
+.koruna-sidebar-item:hover .koruna-sidebar-item-icon,
+.koruna-sidebar-item.active .koruna-sidebar-item-icon {
+  color: #ffffff;
 }
 
 .koruna-sidebar-footer {
-  padding: 0.6rem 0.5rem;
-  border-top: 1px solid #1f1f23;
+  padding: 0.65rem 1rem 1rem;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
 .koruna-sidebar-signout-btn {
@@ -1126,243 +1144,19 @@ body {
 .admin-sidebar-shell {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.6rem;
   min-height: 0;
 }
 
-.admin-sidebar-search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #a1a1aa;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.admin-sidebar-search:focus-within {
-  border-color: rgba(249, 168, 212, 0.55);
-  background: rgba(255, 255, 255, 0.09);
-  box-shadow: 0 0 0 3px rgba(170, 21, 85, 0.18);
-}
-
-.admin-sidebar-search > svg {
-  margin-left: 0.65rem;
-  flex-shrink: 0;
-}
-
-.admin-sidebar-search input {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0 0.4rem;
-}
-
-.admin-sidebar-search input::placeholder {
-  color: #71717a;
-}
-
-.admin-sidebar-search button {
-  width: 28px;
-  height: 28px;
-  margin-right: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #a1a1aa;
-  cursor: pointer;
-}
-
-.admin-sidebar-search button:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.admin-sidebar-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.admin-sidebar-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.admin-sidebar-group-toggle {
-  width: 100%;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #d4d4d8;
-  cursor: pointer;
-  padding: 0 0.45rem;
-  font-size: 0.7rem;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  transition: color 0.2s ease, background 0.2s ease;
-}
-
-.admin-sidebar-group-toggle:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-}
-
-.admin-sidebar-group-toggle span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
-.admin-sidebar-group-toggle svg {
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-
-.admin-sidebar-group-toggle svg.is-open {
-  transform: rotate(180deg);
-}
-
-.admin-sidebar-group-items {
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-}
-
 .admin-sidebar-item.koruna-sidebar-item {
-  position: relative;
-  min-height: 54px;
-  align-items: center;
-  gap: 0.62rem;
-  padding: 0.55rem 0.5rem 0.55rem 0.58rem;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  white-space: normal;
-  overflow: visible;
+  min-height: 34px;
 }
 
-.admin-sidebar-item.koruna-sidebar-item::before {
-  content: '';
-  position: absolute;
-  left: -0.5rem;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 999px;
-  background: transparent;
-}
 
-.admin-sidebar-item.koruna-sidebar-item:hover {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.07);
-  transform: translateX(2px);
-}
-
-.admin-sidebar-item.koruna-sidebar-item.active {
-  border-color: rgba(249, 168, 212, 0.28);
-  background: var(--koruna-dark-item-active);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.admin-sidebar-item.koruna-sidebar-item.active::before {
-  background: #f9a8d4;
-}
-
-.admin-sidebar-item-icon-wrap {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 8px;
-  color: #e4e4e7;
-  background: rgba(255, 255, 255, 0.06);
-  transition: color 0.2s ease, background 0.2s ease;
-}
-
-.admin-sidebar-item.koruna-sidebar-item:hover .admin-sidebar-item-icon-wrap,
-.admin-sidebar-item.koruna-sidebar-item.active .admin-sidebar-item-icon-wrap {
+.admin-sidebar-item.koruna-sidebar-item.active,
+.admin-sidebar-item.koruna-sidebar-item[aria-current="page"] {
+  background: #AF1F60;
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.admin-sidebar-item-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.13rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.admin-sidebar-item-label,
-.admin-sidebar-item-description {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-sidebar-item-label {
-  color: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.admin-sidebar-item-description {
-  color: #71717a;
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.admin-sidebar-item.koruna-sidebar-item:hover .admin-sidebar-item-description,
-.admin-sidebar-item.koruna-sidebar-item.active .admin-sidebar-item-description {
-  color: #fbcfe8;
-}
-
-.admin-sidebar-badge {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 0.05rem;
-  padding: 0.13rem 0.35rem;
-  border-radius: 999px;
-  color: #022c22;
-  background: #6ee7b7;
-  font-size: 0.58rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.admin-sidebar-empty {
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  padding: 0.9rem 0.75rem;
-  color: #a1a1aa;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-align: center;
 }
 
 .koruna-dashboard-content {
@@ -2021,6 +1815,7 @@ body {
     opacity: 0;
     transform: translateY(12px) scale(0.97);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -2044,6 +1839,129 @@ body {
   transform: translateY(-3px);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
   border-color: #94a3b8;
+}
+
+.google-classroom-card {
+  border: 1px solid #dadce0 !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  background: #ffffff;
+  padding: 0 !important;
+  gap: 0 !important;
+  box-shadow: none !important;
+  min-height: 300px;
+}
+
+.google-classroom-card:hover {
+  transform: translateY(-2px);
+  border-color: #c4c7c5 !important;
+  box-shadow: 0 3px 10px rgba(60, 64, 67, 0.18) !important;
+}
+
+.google-classroom-card .koruna-card-thumb-wrap,
+.google-classroom-card .koruna-catalogue-thumb-wrap {
+  height: 112px !important;
+  margin: 0 !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+
+.google-classroom-card .functional-course-banner {
+  padding: 14px !important;
+}
+
+.google-classroom-card .koruna-card-badges,
+.google-classroom-card .koruna-catalogue-badges-row {
+  padding: 0.9rem 1rem 0;
+  margin: 0;
+}
+
+.google-classroom-card .koruna-assigned-card-title,
+.google-classroom-card .koruna-catalogue-title {
+  padding: 0.65rem 1rem 0;
+  margin: 0;
+  min-height: 0;
+  color: #202124;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.koruna-card-due-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 1rem 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #4b5563;
+  font-size: 0.78rem;
+}
+
+.koruna-card-due-date span {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.koruna-card-due-date strong {
+  color: #202124;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.koruna-card-due-date.overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.koruna-card-due-date.overdue strong {
+  color: #b91c1c;
+}
+
+.google-classroom-card > p {
+  padding: 0.65rem 1rem 0;
+  margin: 0 !important;
+}
+
+.google-classroom-card > div[style*="margin-top: auto"],
+.google-classroom-card > div[style*="marginTop: 'auto'"] {
+  padding: 1rem;
+}
+
+.google-classroom-card .koruna-assigned-card-progress,
+.google-classroom-card .koruna-catalogue-progress-row {
+  padding: 0.9rem 1rem 0;
+  margin: auto 0 0;
+}
+
+.google-classroom-card .btn-assigned-course-action,
+.google-classroom-card .btn-catalogue-action-solid,
+.google-classroom-card .btn-catalogue-action-outline {
+  width: auto;
+  max-width: none;
+  height: 40px;
+  margin: 1rem;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.google-classroom-card .btn-catalogue-action-outline {
+  color: #AF1F60;
+  border-color: #dadce0;
+  background: #ffffff;
+}
+
+.google-classroom-card .btn-catalogue-action-outline:hover {
+  background: #fdf2f8;
+  border-color: #f3c4d9;
+}
+
+.google-classroom-card .koruna-badge-pill,
+.google-classroom-card .koruna-catalogue-badge {
+  border-radius: 999px;
+  font-size: 0.7rem;
 }
 
 .koruna-card-thumb-wrap {
@@ -2543,6 +2461,358 @@ body {
   border-color: #cbd5e1 !important;
 }
 
+.koruna-learning-path-page {
+  min-height: 100%;
+  padding: 1.25rem;
+  background: #f7f7f7;
+}
+
+.koruna-learning-path-hero {
+  width: 100%;
+  padding: 1rem 1.125rem 1.2rem;
+  margin-bottom: 1.95rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #9d0c58 0%, #c21e68 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.koruna-learning-path-hero h1 {
+  margin: 0 0 0.45rem;
+  color: #ffffff;
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.koruna-learning-path-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.83rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.koruna-learning-path-hero-progress {
+  min-width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-end;
+  color: #ffffff;
+}
+
+.koruna-learning-path-hero-progress span {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.koruna-learning-path-hero-track {
+  width: 132px;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.koruna-learning-path-hero-track div {
+  height: 100%;
+  border-radius: inherit;
+  background: #ffffff;
+  transition: width 0.25s ease;
+}
+
+.koruna-learning-path-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.koruna-learning-path-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 65px;
+  padding: 0.85rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.koruna-learning-path-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.koruna-learning-path-item:focus-visible {
+  outline: 3px solid rgba(194, 30, 104, 0.2);
+  outline-offset: 2px;
+}
+
+.koruna-learning-path-item.selected {
+  border-color: rgba(194, 30, 104, 0.32);
+  box-shadow: 0 10px 22px rgba(194, 30, 104, 0.08);
+}
+
+.koruna-learning-path-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  flex-shrink: 0;
+}
+
+.koruna-learning-path-icon.completed {
+  color: #ffffff;
+  background: #2fca62;
+}
+
+.koruna-learning-path-icon.in_progress {
+  color: #ffffff;
+  background: #c21e68;
+}
+
+.koruna-learning-path-icon.not_started {
+  color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.koruna-learning-path-copy {
+  min-width: 0;
+}
+
+.koruna-learning-path-copy h2 {
+  margin: 0 0 0.45rem;
+  color: #27272a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.koruna-learning-path-copy p {
+  margin: 0;
+  color: #67676c;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.koruna-learning-path-status {
+  justify-self: end;
+  padding: 0.28rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.koruna-learning-path-status.completed {
+  color: #22c55e;
+  background: #e9fbef;
+}
+
+.koruna-learning-path-status.in_progress {
+  color: #f59e0b;
+  background: #fff7df;
+}
+
+.koruna-learning-path-status.not_started {
+  color: #8f8f94;
+  background: #f1f1f1;
+}
+
+.koruna-learning-path-detail {
+  margin-top: 0.9rem;
+  padding: 1rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #eeeeee;
+}
+
+.koruna-learning-path-detail.completed {
+  border-color: rgba(47, 202, 98, 0.22);
+}
+
+.koruna-learning-path-detail.in_progress {
+  border-color: rgba(194, 30, 104, 0.25);
+}
+
+.koruna-learning-path-detail-heading {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.koruna-learning-path-detail-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.koruna-learning-path-detail-icon.completed {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.koruna-learning-path-detail-icon.in_progress {
+  color: #c21e68;
+  background: #fce7f3;
+}
+
+.koruna-learning-path-detail-icon.not_started {
+  color: #71717a;
+  background: #f4f4f5;
+}
+
+.koruna-learning-path-detail h2 {
+  margin: 0 0 0.35rem;
+  color: #27272a;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.koruna-learning-path-detail p {
+  margin: 0;
+  color: #67676c;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.koruna-learning-path-modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+
+.koruna-learning-path-modules span {
+  padding: 0.35rem 0.55rem;
+  border-radius: 9999px;
+  background: #f5f5f5;
+  color: #3f3f46;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.koruna-learning-path-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.koruna-learning-path-action-row>div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.koruna-learning-path-action-label {
+  color: #71717a;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.koruna-learning-path-action-row strong {
+  color: #c21e68;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.koruna-learning-path-action {
+  height: 36px;
+  padding: 0 0.85rem;
+  border: none;
+  border-radius: 8px;
+  background: #c21e68;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.koruna-learning-path-action:hover:not(:disabled) {
+  background: #9d0c58;
+  transform: translateY(-1px);
+}
+
+.koruna-learning-path-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .koruna-learning-path-page {
+    padding: 1rem;
+  }
+
+  .koruna-learning-path-hero {
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .koruna-learning-path-hero-progress {
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+  }
+
+  .koruna-learning-path-hero-track {
+    width: 100%;
+  }
+
+  .koruna-learning-path-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+    min-height: 72px;
+  }
+
+  .koruna-learning-path-status {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 0.15rem;
+  }
+
+  .koruna-learning-path-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .koruna-learning-path-action {
+    width: 100%;
+  }
+}
+
 /* ==========================================================================
    11. IMMERSIVE STUDY VIEWER & INTERACTIVE MODULES
    ========================================================================== */
@@ -2933,11 +3203,14 @@ body {
 }
 
 @keyframes korunaPulseFloat {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) scale(1) translateZ(0);
     opacity: 0.95;
     filter: drop-shadow(0 10px 28px rgba(175, 31, 96, 0.25));
   }
+
   50% {
     transform: translateY(-7px) scale(1.04) translateZ(0);
     opacity: 1;

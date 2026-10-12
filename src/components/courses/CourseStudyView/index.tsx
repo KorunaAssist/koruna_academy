@@ -189,7 +189,7 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
                 margin: 0,
                 lineHeight: 1.4
               }}>
-                Toggle assign status for employees to add this to their compliance learning pathways.
+                Toggle assign status for profile accounts to add this to their compliance learning pathways.
               </p>
 
               <div style={{
@@ -203,7 +203,7 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
                 borderRadius: '8px',
                 background: '#fafbfc'
               }}>
-                {users.filter(u => u.role === 'employee').map(emp => {
+                {users.filter(u => Boolean(u.email)).map(emp => {
                   const empProg = teamProgress[emp.email.toLowerCase()] || [];
                   const isAssigned = empProg.some(p => p.courseId === studyingCourse.id && p.dueDate);
 

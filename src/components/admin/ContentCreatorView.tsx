@@ -50,9 +50,9 @@ export interface ContentCreatorViewProps {
 
 type TabId = 'details' | 'content' | 'access' | 'review';
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'details', label: 'Details', icon: <Settings2 size={14} /> },
-  { id: 'content', label: 'Content', icon: <Layers size={14} /> },
-  { id: 'access', label: 'Resources & access', icon: <Paperclip size={14} /> },
+  { id: 'details', label: 'Info', icon: <Settings2 size={14} /> },
+  { id: 'content', label: 'Lessons', icon: <Layers size={14} /> },
+  { id: 'access', label: 'Assign', icon: <Paperclip size={14} /> },
   { id: 'review', label: 'Review', icon: <ListChecks size={14} /> }
 ];
 
@@ -123,6 +123,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [videoModal, setVideoModal] = useState<string | null>(null);
   const [docPreview, setDocPreview] = useState(false);
   const [quizTest, setQuizTest] = useState(false);
+  const [showTips, setShowTips] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
 
@@ -271,7 +272,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
       { id: 'desc', label: 'Description', ok: descOk, tab: 'details' },
       { id: 'content', label: isDocument ? 'Document body' : 'Lessons & modules', ok: contentOk, tab: 'content' },
       { id: 'assess', label: isDocument ? 'Acknowledgment statement' : courseQuiz.length ? 'Knowledge check quiz' : 'Quiz (optional)', ok: assessOk, tab: 'content' },
-      { id: 'access', label: 'Assigned employees', ok: assignedUserEmails.length > 0, tab: 'access' },
+      { id: 'access', label: 'Assigned accounts', ok: assignedUserEmails.length > 0, tab: 'access' },
       { id: 'deadline', label: 'Assignment deadline', ok: assignedUserEmails.length === 0 || !!assignmentDueDate, tab: 'access' }
     ];
     const completed = items.filter((i) => i.ok).length;
@@ -284,8 +285,8 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
         : id === 'access' ? assignedUserEmails.length > 0
           : readiness.percent === 100;
 
-  /* ---------- Employees ---------- */
-  const employees = useMemo(() => users.filter((u) => u.role === 'employee'), [users]);
+  /* ---------- Assignable profile accounts ---------- */
+  const employees = useMemo(() => users.filter((u) => Boolean(u.email)), [users]);
   const departments = useMemo(() => Array.from(new Set(employees.map((e) => e.department).filter(Boolean))), [employees]);
   const assignedCount = useMemo(() => {
     const s = new Set(employees.map((e) => e.email));
@@ -332,21 +333,22 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
       <style>{CSS}</style>
 
       <form id="trainer-course-form" onSubmit={handleSaveCourse}>
-        {/* Sticky toolbar */}
         <header className="cc-bar">
-          <div className="cc-bar-title">
-            <span className="cc-bar-icon">{isDocument ? <FileText size={16} /> : <BookOpen size={16} />}</span>
+          <div className="cc-bar-main">
+            <div className="cc-bar-title">
+              <span className="cc-bar-icon">{isDocument ? <FileText size={18} /> : <BookOpen size={18} />}</span>
             <div className="cc-bar-text">
+              <span>{editingCourseId ? 'Editing' : 'Draft'}</span>
               <strong>{courseForm.title.trim() || (isDocument ? 'New document' : 'New course')}</strong>
               <span>{editingCourseId ? 'Editing' : 'Draft'} · {isDocument ? 'Policy acknowledgment' : 'Interactive course'}</span>
             </div>
-          </div>
+            </div>
 
           <nav className="cc-tabs" role="tablist">
-            {TABS.map((t) => (
+            {TABS.map((t, index) => (
               <button key={t.id} type="button" role="tab" aria-selected={tab === t.id}
                 className={`cc-tab ${tab === t.id ? 'on' : ''}`} onClick={() => setTab(t.id)}>
-                {tabDone(t.id) && t.id !== 'review' ? <Check size={13} className="cc-tab-ok" /> : t.icon}
+                <span className="cc-tab-step">{tabDone(t.id) && t.id !== 'review' ? <Check size={13} /> : index + 1}</span>
                 <span>{t.label}</span>
               </button>
             ))}
@@ -355,16 +357,13 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
           <div className="cc-bar-actions">
             <div className="cc-meter" title="Publish readiness">
               <div className="cc-meter-track"><div style={{ width: `${readiness.percent}%` }} className={readiness.percent === 100 ? 'full' : ''} /></div>
-              <span>{readiness.percent}%</span>
+              <span>{readiness.percent}% ready</span>
             </div>
-            <button type="button" className="cc-btn ghost" onClick={onOpenInventoryModal} title="Course inventory">
-              <BookOpen size={14} /> {courses.length}
+            <button type="button" className="cc-btn ghost" onClick={onOpenInventoryModal} title={`Course inventory (${courses.length})`}>
+              <BookOpen size={14} /> Library
             </button>
             {editingCourseId && <button type="button" className="cc-btn" onClick={resetCourseFormState}>Cancel</button>}
-            <button type="submit" disabled={isUploading} className="cc-btn primary">
-              {isUploading ? <RefreshCw size={14} className="cc-spin" /> : editingCourseId ? <Check size={14} /> : <Zap size={14} />}
-              {isUploading ? 'Uploading' : editingCourseId ? 'Save' : 'Publish'}
-            </button>
+            </div>
           </div>
         </header>
 
@@ -372,6 +371,49 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
         {tab === 'details' && (
           <div className="cc-grid-main">
             <section className="cc-card">
+              <div className="cc-tip-trigger-row">
+                <button type="button" className="cc-btn ghost" onClick={() => setShowTips((value) => !value)}>
+                  <HelpCircle size={14} /> {showTips ? 'Hide creation tips' : 'Show creation tips'}
+                </button>
+              </div>
+              {showTips && (
+                <section className="cc-tips-card">
+                  <div className="cc-card-h between">
+                    <span><HelpCircle size={14} /> Content creation tips</span>
+                    <em className="cc-tag">Guide</em>
+                  </div>
+                  <div className="cc-tips-grid">
+                    <div className="cc-tip">
+                      <span>1</span>
+                      <div>
+                        <strong>Start with a clear outcome</strong>
+                        <p>Write what the learner should know, do, or acknowledge after completing this content.</p>
+                      </div>
+                    </div>
+                    <div className="cc-tip">
+                      <span>2</span>
+                      <div>
+                        <strong>Keep lessons focused</strong>
+                        <p>Use short modules with one topic each, then attach reference files only when they support the lesson.</p>
+                      </div>
+                    </div>
+                    <div className="cc-tip">
+                      <span>3</span>
+                      <div>
+                        <strong>Add checks only when useful</strong>
+                        <p>Use quiz questions for courses, or an acknowledgment statement for policy documents.</p>
+                      </div>
+                    </div>
+                    <div className="cc-tip">
+                      <span>4</span>
+                      <div>
+                        <strong>Assign the right accounts</strong>
+                        <p>Select the target accounts and set a realistic deadline before publishing.</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
               <div className="cc-seg" role="radiogroup" aria-label="Content format">
                 <button type="button" className={!isDocument ? 'on' : ''} onClick={() => patch({ contentType: 'course' })}>
                   <BookOpen size={14} /> Interactive course
@@ -424,6 +466,38 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
               </label>
             </section>
 
+            <section className="cc-card">
+              <div className="cc-card-h between">
+                <span><Paperclip size={14} /> Attachments</span>
+                <em className="cc-tag">{attachments.length} file{attachments.length === 1 ? '' : 's'}</em>
+              </div>
+              <div className="cc-drop file">
+                <input type="file" multiple disabled={isUploading} onChange={(e) => handleFileUpload(e.target.files)} />
+                {isUploading ? <RefreshCw size={18} className="cc-spin" /> : <CloudUpload size={18} />}
+                <div>
+                  <strong>{isUploading ? 'Uploading...' : 'Drop files or browse'}</strong>
+                  <span>PDF, MP4, DOCX, XLSX, ZIP</span>
+                </div>
+              </div>
+              {attachments.length === 0 ? (
+                <p className="cc-muted cc-note">No reference files yet. Handbooks and guides are optional.</p>
+              ) : (
+                <ul className="cc-files">
+                  {attachments.map((f, i) => {
+                    const b = getFileBadge(f.name);
+                    return (
+                      <li key={i}>
+                        <span className="cc-ft" style={{ background: b.bg, color: b.color }}>{b.label}</span>
+                        <div><strong title={f.name}>{f.name}</strong><span>{(f.size / 1024).toFixed(1)} KB</span></div>
+                        {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="cc-ico" title="Open"><Eye size={13} /></a>}
+                        <button type="button" className="cc-ico danger" onClick={() => removeAttachment(i)} title="Remove"><Trash2 size={13} /></button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
             <aside className="cc-card cc-side">
               <div className="cc-card-h"><ImageIcon size={14} /> Card cover</div>
               <input ref={cardImageRef} type="file" accept="image/*" hidden
@@ -458,6 +532,15 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                       </button>
                     ))}
                   </div>
+                  <label className="cc-color-field">
+                    <span>Custom color</span>
+                    <input
+                      type="color"
+                      value={/^#[0-9a-f]{6}$/i.test(courseForm.imgBg || '') ? courseForm.imgBg : '#0284c7'}
+                      onChange={(e) => patch({ imgBg: e.target.value })}
+                      aria-label="Choose generated cover color"
+                    />
+                  </label>
                   <CourseBannerHeader
                     course={{
                       title: courseForm.title || (isDocument ? 'Document title' : 'Course title'), category: courseForm.category || 'Mortgage',
@@ -693,39 +776,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
           <div className="cc-grid-access">
             <section className="cc-card">
               <div className="cc-card-h between">
-                <span><Paperclip size={14} /> Attachments</span>
-                <em className="cc-tag">{attachments.length} file{attachments.length === 1 ? '' : 's'}</em>
-              </div>
-              <div className="cc-drop file">
-                <input type="file" multiple disabled={isUploading} onChange={(e) => handleFileUpload(e.target.files)} />
-                {isUploading ? <RefreshCw size={18} className="cc-spin" /> : <CloudUpload size={18} />}
-                <div>
-                  <strong>{isUploading ? 'Uploading...' : 'Drop files or browse'}</strong>
-                  <span>PDF, MP4, DOCX, XLSX, ZIP</span>
-                </div>
-              </div>
-              {attachments.length === 0 ? (
-                <p className="cc-muted cc-note">No reference files yet. Handbooks and guides are optional.</p>
-              ) : (
-                <ul className="cc-files">
-                  {attachments.map((f, i) => {
-                    const b = getFileBadge(f.name);
-                    return (
-                      <li key={i}>
-                        <span className="cc-ft" style={{ background: b.bg, color: b.color }}>{b.label}</span>
-                        <div><strong title={f.name}>{f.name}</strong><span>{(f.size / 1024).toFixed(1)} KB</span></div>
-                        {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="cc-ico" title="Open"><Eye size={13} /></a>}
-                        <button type="button" className="cc-ico danger" onClick={() => removeAttachment(i)} title="Remove"><Trash2 size={13} /></button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-
-            <section className="cc-card">
-              <div className="cc-card-h between">
-                <span><Users size={14} /> Assign employees</span>
+                <span><Users size={14} /> Assign accounts</span>
                 <em className="cc-tag ok">{assignedUserEmails.length} enrolled · {employees.length ? Math.round((assignedCount / employees.length) * 100) : 0}%</em>
               </div>
 
@@ -750,7 +801,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setAssignmentDueDate(e.target.value)}
                 />
-                <em>Assigned employees must complete this by the selected date.</em>
+                <em>Assigned accounts must complete this by the selected date.</em>
               </label>
 
               <div className="cc-row">
@@ -780,7 +831,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                 {filtered.length === 0 && (
                   <div className="cc-empty-box">
                     <Users size={20} />
-                    <span>No employees match these filters.</span>
+                    <span>No accounts match these filters.</span>
                     <button type="button" className="cc-btn sm" onClick={() => { setEmployeeSearch(''); setDeptFilter('All'); setAssignTab('all'); }}>Reset filters</button>
                   </div>
                 )}
@@ -791,39 +842,90 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 
         {/* ===== REVIEW ===== */}
         {tab === 'review' && (
-          <div className="cc-grid-review">
-            <section className="cc-card">
-              <div className="cc-card-h">
-                <CheckCircle2 size={14} /> Publish checklist ({readiness.completed}/{readiness.total})
+          <div className="cc-review-page">
+            <section className="cc-review-summary" aria-label="Publish summary">
+              <div className="cc-review-stat">
+                <span className="cc-review-stat-ico"><FileText size={16} /></span>
+                <div>
+                  <span>Format</span>
+                  <strong>{isDocument ? 'Document' : 'Course'}</strong>
+                </div>
               </div>
-              <ul className="cc-check">
-                {readiness.items.map((it) => (
-                  <li key={it.id} className={it.ok ? 'ok' : ''}>
-                    {it.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-                    <span>{it.label}</span>
-                    {!it.ok && <button type="button" className="cc-link" onClick={() => setTab(it.tab)}>Fix</button>}
-                  </li>
-                ))}
-              </ul>
-              <div className="cc-row">
-                {editingCourseId && <button type="button" className="cc-btn grow" onClick={resetCourseFormState}>Cancel edit</button>}
-                <button type="submit" disabled={isUploading} className="cc-btn primary grow">
-                  {editingCourseId ? <Check size={14} /> : <Zap size={14} />} {editingCourseId ? 'Save changes' : 'Publish'}
-                </button>
+              <div className="cc-review-stat">
+                <span className="cc-review-stat-ico"><Users size={16} /></span>
+                <div>
+                  <span>Assigned</span>
+                  <strong>{assignedUserEmails.length} account{assignedUserEmails.length === 1 ? '' : 's'}</strong>
+                </div>
+              </div>
+              <div className="cc-review-stat">
+                <span className="cc-review-stat-ico"><Award size={16} /></span>
+                <div>
+                  <span>{isDocument ? 'Acknowledgment' : 'Quiz'}</span>
+                  <strong>{isDocument ? (courseForm.acknowledgmentText ? 'Ready' : 'Missing') : `${courseQuiz.filter((q) => q.question.trim()).length} question${courseQuiz.filter((q) => q.question.trim()).length === 1 ? '' : 's'}`}</strong>
+                </div>
+              </div>
+              <div className="cc-review-stat">
+                <span className="cc-review-stat-ico"><CheckCircle2 size={16} /></span>
+                <div>
+                  <span>Readiness</span>
+                  <strong>{readiness.percent}%</strong>
+                </div>
               </div>
             </section>
-            <div>
-              <div className="cc-card-h cc-plain"><Eye size={14} /> Catalog card preview</div>
-              <CourseCard course={previewCourse} variant="trainer" />
+
+            <div className="cc-grid-review">
+              <section className="cc-card cc-review-card">
+                <div className="cc-review-card-head">
+                  <div>
+                    <span className="cc-eyebrow">Publish controls</span>
+                    <h3>Final checklist</h3>
+                  </div>
+                  <span className={`cc-review-score ${readiness.percent === 100 ? 'ready' : ''}`}>
+                    {readiness.completed}/{readiness.total}
+                  </span>
+                </div>
+
+                <div className="cc-review-progress" aria-hidden="true">
+                  <div style={{ width: `${readiness.percent}%` }} />
+                </div>
+
+                <ul className="cc-check">
+                  {readiness.items.map((it) => (
+                    <li key={it.id} className={it.ok ? 'ok' : ''}>
+                      <span className="cc-check-icon">
+                        {it.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                      </span>
+                      <span>{it.label}</span>
+                      {!it.ok && <button type="button" className="cc-link" onClick={() => setTab(it.tab)}>Fix</button>}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="cc-review-actions">
+                  {editingCourseId && <button type="button" className="cc-btn grow" onClick={resetCourseFormState}>Cancel edit</button>}
+                  <button type="submit" disabled={isUploading} className="cc-btn primary publish grow">
+                    {editingCourseId ? <Check size={14} /> : <Zap size={14} />} {editingCourseId ? 'Save changes' : 'Publish'}
+                  </button>
+                </div>
+              </section>
+
+              <section className="cc-card cc-review-card cc-preview-card">
+                <div className="cc-review-card-head">
+                  <div>
+                    <span className="cc-eyebrow">Learner catalog</span>
+                    <h3>Card preview</h3>
+                  </div>
+                  <Eye size={17} />
+                </div>
+                <div className="cc-preview-shell">
+                  <CourseCard course={previewCourse} variant="trainer" />
+                </div>
+              </section>
             </div>
           </div>
         )}
 
-        <div className="as-sticky-save">
-          <button type="submit" disabled={isUploading} className="as-btn as-btn--primary as-btn--full" style={{ borderRadius: 0, height: 46 }}>
-            <Zap size={16} /> {isUploading ? 'Uploading...' : editingCourseId ? 'Save changes' : 'Publish'}
-          </button>
-        </div>
       </form>
 
       {videoModal && (
@@ -845,39 +947,46 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 };
 
 const CSS = `
-.cc{--p:var(--as-primary,#a31555);--ps:var(--as-primary-soft,#fdf2f8);--ln:var(--as-line,#e5e9f0);--ink:var(--as-ink,#0f172a);--mu:#64748b;--good:var(--as-good,#16a34a);--warn:var(--as-warn,#d97706);
-  font-family:Inter,system-ui,-apple-system,sans-serif;font-size:13px;color:var(--ink);padding-bottom:3rem}
+.cc{--p:#AF1F60;--p-dark:#97184f;--ps:#fdf2f8;--ln:#e5e7eb;--ink:#111827;--mu:#6b7280;--good:#16a34a;--warn:#d97706;
+  font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;color:var(--ink);padding-bottom:3rem}
 .cc *{box-sizing:border-box}
 .cc button{font-family:inherit;cursor:pointer}
 .cc button:disabled{opacity:.4;cursor:not-allowed}
 .cc :focus-visible{outline:2px solid var(--p);outline-offset:1px}
 
 /* toolbar */
-.cc-bar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.9rem;padding:.5rem .75rem;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--ln);border-radius:12px;margin-bottom:.9rem;flex-wrap:wrap}
-.cc-bar-title{display:flex;align-items:center;gap:.6rem;min-width:0;flex:1 1 200px}
-.cc-bar-icon{width:30px;height:30px;border-radius:8px;background:var(--ps);color:var(--p);display:grid;place-items:center;flex-shrink:0}
-.cc-bar-text{display:flex;flex-direction:column;min-width:0}
-.cc-bar-text strong{font-size:13.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cc-bar-text span{font-size:11px;color:var(--mu)}
-.cc-tabs{display:flex;gap:2px;background:#f1f5f9;padding:3px;border-radius:9px}
-.cc-tab{display:inline-flex;align-items:center;gap:.35rem;border:0;background:transparent;color:var(--mu);font-size:12px;font-weight:550;padding:.38rem .7rem;border-radius:7px;white-space:nowrap}
-.cc-tab:hover{color:var(--ink)}
-.cc-tab.on{background:#fff;color:var(--p);box-shadow:0 1px 2px rgba(15,23,42,.08)}
-.cc-tab-ok{color:var(--good)}
-.cc-bar-actions{display:flex;align-items:center;gap:.4rem;margin-left:auto}
-.cc-meter{display:flex;align-items:center;gap:.4rem;font-size:11px;font-weight:650;color:var(--mu);margin-right:.2rem}
-.cc-meter-track{width:56px;height:5px;background:#e8edf3;border-radius:9px;overflow:hidden}
+.cc-bar{position:sticky;top:0;z-index:30;display:flex;flex-direction:column;gap:.9rem;padding:1rem;background:#fff;border:1px solid var(--ln);border-radius:14px;margin-bottom:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.05)}
+.cc-bar-main{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.cc-bar-title{order:1;display:flex;align-items:center;gap:.8rem;min-width:0;flex:1 1 260px}
+.cc-bar-icon{width:42px;height:42px;border-radius:10px;background:var(--ps);color:var(--p);display:grid;place-items:center;flex-shrink:0}
+.cc-bar-text{display:flex;flex-direction:column;min-width:0;gap:.12rem}
+.cc-bar-text strong{font-size:1.25rem;font-weight:750;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc-bar-text span{font-size:.78rem;color:var(--mu);font-weight:650;text-transform:uppercase}
+.cc-bar-text strong + span{display:none}
+.cc-tabs{order:3;width:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;background:#f8fafc;padding:.35rem;border-radius:12px;border:1px solid #eef2f7}
+.cc-tab{display:flex;align-items:center;justify-content:center;gap:.5rem;min-height:42px;border:0;background:transparent;color:var(--mu);font-size:.86rem;font-weight:700;padding:.45rem .6rem;border-radius:9px;white-space:nowrap}
+.cc-tab:hover{background:#fff;color:var(--ink)}
+.cc-tab.on{background:#fff;color:var(--p);box-shadow:0 1px 4px rgba(15,23,42,.1)}
+.cc-tab-step{width:22px;height:22px;border-radius:999px;background:#e5e7eb;color:#4b5563;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0}
+.cc-tab.on .cc-tab-step,.cc-tab-step:has(svg){background:var(--p);color:#fff}
+.cc-bar-actions{order:2;display:flex;align-items:center;justify-content:flex-end;gap:.55rem;flex-wrap:wrap}
+.cc-meter{display:flex;align-items:center;gap:.5rem;font-size:.78rem;font-weight:750;color:var(--mu);padding:.35rem .55rem;border-radius:999px;background:#f9fafb;border:1px solid #eef2f7}
+.cc-meter-track{width:72px;height:6px;background:#e8edf3;border-radius:9px;overflow:hidden}
 .cc-meter-track div{height:100%;background:var(--p);border-radius:9px;transition:width .25s}
 .cc-meter-track div.full{background:var(--good)}
-@media(max-width:900px){.cc-tabs{order:3;width:100%;overflow-x:auto}.cc-tab span{display:inline}.cc-bar-actions{margin-left:0}}
+@media(max-width:900px){.cc-bar{position:static}.cc-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-bar-actions{width:100%;justify-content:flex-start}}
 
 /* buttons */
-.cc-btn{display:inline-flex;align-items:center;gap:.35rem;height:30px;padding:0 .7rem;border-radius:8px;border:1px solid var(--ln);background:#fff;color:var(--ink);font-size:12px;font-weight:600;white-space:nowrap}
+.cc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;height:38px;padding:0 .9rem;border-radius:8px;border:1px solid var(--ln);background:#fff;color:var(--ink);font-size:.86rem;font-weight:700;white-space:nowrap}
 .cc-btn:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1}
-.cc-btn.sm{height:26px;padding:0 .55rem;font-size:11.5px}
+.cc-btn.sm{height:32px;padding:0 .7rem;font-size:.78rem}
 .cc-btn.ghost{border-color:transparent;background:transparent;color:var(--mu)}
 .cc-btn.primary{background:var(--p);border-color:var(--p);color:#fff}
 .cc-btn.primary:hover:not(:disabled){filter:brightness(1.08);background:var(--p)}
+.cc-btn.publish{background:#AF1F60;border-color:#AF1F60;color:#fff}
+.cc-btn.publish:hover:not(:disabled){background:#97184f;border-color:#97184f;filter:none}
+.cc-publish-sticky{background:#AF1F60!important;border-color:#AF1F60!important;color:#fff!important}
+.cc-publish-sticky:hover:not(:disabled){background:#97184f!important;border-color:#97184f!important}
 .cc-btn.danger{color:#dc2626}
 .cc-btn.grow{flex:1;justify-content:center}
 .cc-ico{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--mu)}
@@ -889,46 +998,57 @@ const CSS = `
 @media(prefers-reduced-motion:reduce){.cc-spin{animation:none}}
 
 /* layout */
-.cc-grid-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:.9rem;align-items:start}
-.cc-grid-access{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:.9rem;align-items:start}
-.cc-grid-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.9rem;align-items:start}
+.cc-grid-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1.25rem;align-items:start}
+.cc-grid-main > .cc-card:not(.cc-side){grid-column:1}
+.cc-grid-main > .cc-side{grid-column:2;grid-row:1 / span 2}
+.cc-grid-access{display:grid;grid-template-columns:1fr;gap:1.25rem;align-items:start}
+.cc-grid-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1.25rem;align-items:start}
 @media(max-width:900px){.cc-grid-main,.cc-grid-access,.cc-grid-review{grid-template-columns:1fr}}
-.cc-side{position:sticky;top:64px}
+@media(max-width:720px){.cc-tips-grid{grid-template-columns:1fr}}
+.cc-side{position:sticky;top:128px}
 @media(max-width:900px){.cc-side{position:static}}
-.cc-stack{display:flex;flex-direction:column;gap:.7rem}
-.cc-stack.tight{gap:.5rem}
-.cc-card{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:.85rem;display:flex;flex-direction:column;gap:.7rem;min-width:0}
-.cc-card-h{display:flex;align-items:center;gap:.4rem;font-size:12.5px;font-weight:650}
+.cc-stack{display:flex;flex-direction:column;gap:1rem}
+.cc-stack.tight{gap:.7rem}
+.cc-card{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:1.15rem;display:flex;flex-direction:column;gap:1rem;min-width:0;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+.cc-card-h{display:flex;align-items:center;gap:.5rem;font-size:.95rem;font-weight:750}
 .cc-card-h>span{display:inline-flex;align-items:center;gap:.4rem;flex-wrap:wrap}
 .cc-card-h.between{justify-content:space-between}
 .cc-card-h svg{color:var(--p)}
 .cc-plain{background:none;border:0;padding:0}
-.cc-row{display:flex;align-items:center;gap:.4rem}
+.cc-tip-trigger-row{display:flex;justify-content:flex-end;margin-bottom:-.25rem}
+.cc-tips-card{background:#fff;border:1px solid #f3d4e3;border-radius:10px;padding:.85rem;display:flex;flex-direction:column;gap:.75rem}
+.cc-tips-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.cc-tip{display:flex;gap:.65rem;padding:.75rem;border:1px solid #f3d4e3;border-radius:10px;background:#fff7fb;min-width:0}
+.cc-tip>span{width:24px;height:24px;border-radius:999px;background:var(--p);color:#fff;display:grid;place-items:center;font-size:.72rem;font-weight:800;flex-shrink:0}
+.cc-tip div{min-width:0}
+.cc-tip strong{display:block;font-size:.86rem;font-weight:800;color:var(--ink);line-height:1.25}
+.cc-tip p{margin:.18rem 0 0;color:var(--mu);font-size:.78rem;line-height:1.4}
+.cc-row{display:flex;align-items:center;gap:.55rem}
 .cc-row.wrap{flex-wrap:wrap}.cc-row.between{justify-content:space-between}
 .grow{flex:1;min-width:0}
 .cc-between{display:flex;justify-content:space-between;align-items:center}
 .cc-muted{color:var(--mu)}
-.cc-note{font-size:12px;margin:0;padding:.7rem;background:#f8fafc;border-radius:8px;text-align:center}
+.cc-note{font-size:.86rem;margin:0;padding:.85rem;background:#f8fafc;border-radius:8px;text-align:center}
 .cc-tag{font-style:normal;font-size:10.5px;font-weight:650;padding:.1rem .45rem;border-radius:99px;background:#f1f5f9;color:var(--mu)}
 .cc-tag.warn{background:#fff7ed;color:var(--warn)}.cc-tag.ok{background:#f0fdf4;color:var(--good)}
-.cc-badge{font-size:10.5px;font-weight:750;padding:.15rem .4rem;border-radius:6px;background:var(--p);color:#fff;white-space:nowrap}
+.cc-badge{font-size:.72rem;font-weight:800;padding:.2rem .45rem;border-radius:6px;background:var(--p);color:#fff;white-space:nowrap}
 .cc-badge.soft{background:var(--ps);color:var(--p)}.cc-badge.warn{background:#fff7ed;color:var(--warn)}
 
 /* form */
-.cc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem}
-.cc-f{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.cc-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.9rem}
+.cc-f{display:flex;flex-direction:column;gap:.38rem;min-width:0}
 .cc-f.span2,.cc-fields .span2{grid-column:1/-1}
-.cc-f>span{font-size:11.5px;font-weight:600;color:#475569}
-.cc-f em{font-size:11px;color:var(--mu);font-style:normal}
-.cc-in{width:100%;height:32px;padding:0 .6rem;border:1px solid var(--ln);border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:12.5px}
-textarea.cc-in{height:auto;padding:.5rem .6rem;line-height:1.5;resize:vertical}
+.cc-f>span{font-size:.8rem;font-weight:700;color:#4b5563}
+.cc-f em{font-size:.76rem;color:var(--mu);font-style:normal}
+.cc-in{width:100%;height:42px;padding:0 .8rem;border:1px solid var(--ln);border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:.92rem}
+textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical}
 .cc-in:hover{border-color:#cbd5e1}.cc-in:focus{border-color:var(--p);outline:0;box-shadow:0 0 0 3px var(--ps)}
-.cc-title-in{font-weight:650;height:30px}
+.cc-title-in{font-weight:700;height:40px}
 .cc-w-type{width:150px;flex-shrink:0}.cc-w-dept{width:160px;flex-shrink:0}
-.cc-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:#f1f5f9;padding:3px;border-radius:9px}
-.cc-seg button{display:flex;align-items:center;justify-content:center;gap:.4rem;border:0;background:transparent;border-radius:7px;padding:.45rem;font-size:12px;font-weight:600;color:var(--mu)}
+.cc-seg{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;background:#f8fafc;padding:.35rem;border-radius:10px;border:1px solid #eef2f7}
+.cc-seg button{display:flex;align-items:center;justify-content:center;gap:.45rem;border:0;background:transparent;border-radius:8px;padding:.7rem;font-size:.9rem;font-weight:700;color:var(--mu)}
 .cc-seg button.on{background:#fff;color:var(--p);box-shadow:0 1px 2px rgba(15,23,42,.08)}
-.cc-switch{display:flex;align-items:center;gap:.5rem;padding:.55rem .7rem;border:1px solid var(--ln);border-radius:9px;background:#f8fafc;font-size:12.5px;font-weight:600;cursor:pointer}
+.cc-switch{display:flex;align-items:center;gap:.55rem;padding:.75rem .85rem;border:1px solid var(--ln);border-radius:9px;background:#f8fafc;font-size:.9rem;font-weight:700;cursor:pointer}
 .cc-switch input{accent-color:var(--p);width:15px;height:15px}.cc-switch svg{color:var(--p)}
 
 /* cover */
@@ -943,6 +1063,8 @@ textarea.cc-in{height:auto;padding:.5rem .6rem;line-height:1.5;resize:vertical}
 .cc-chips{display:flex;gap:.35rem}
 .cc-chip{width:24px;height:24px;border-radius:7px;border:2px solid transparent;display:grid;place-items:center;color:#fff}
 .cc-chip.on{border-color:var(--ink)}
+.cc-color-field{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-size:12px;color:var(--mu);font-weight:650}
+.cc-color-field input{width:42px;height:30px;border:1px solid var(--ln);border-radius:8px;background:#fff;padding:2px;cursor:pointer}
 
 /* modules */
 .cc-module{border-left:3px solid var(--p)}
@@ -996,10 +1118,35 @@ textarea.cc-in{height:auto;padding:.5rem .6rem;line-height:1.5;resize:vertical}
 .cc-ft{font-size:10px;font-weight:800;padding:.2rem .35rem;border-radius:5px;flex-shrink:0}
 
 /* review */
-.cc-check{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
-.cc-check li{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border:1px solid var(--ln);border-radius:8px;color:var(--warn);font-weight:550}
-.cc-check li span{flex:1}
-.cc-check li.ok{color:var(--ink)}.cc-check li.ok svg{color:var(--good)}
+.cc-review-page{display:flex;flex-direction:column;gap:1.25rem}
+.cc-review-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.9rem}
+.cc-review-stat{display:flex;align-items:center;gap:.8rem;min-width:0;background:#fff;border:1px solid var(--ln);border-radius:12px;padding:1rem;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+.cc-review-stat-ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--ps);color:var(--p);flex-shrink:0}
+.cc-review-stat div{min-width:0;display:flex;flex-direction:column;gap:.12rem}
+.cc-review-stat span:not(.cc-review-stat-ico){font-size:.72rem;font-weight:800;color:var(--mu);text-transform:uppercase}
+.cc-review-stat strong{font-size:1rem;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc-review-card{gap:1rem;padding:1.2rem}
+.cc-review-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.cc-review-card-head h3{font-size:1.05rem;font-weight:800;line-height:1.2}
+.cc-eyebrow{display:block;margin-bottom:.2rem;font-size:.72rem;font-weight:800;text-transform:uppercase;color:var(--mu)}
+.cc-review-score{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:30px;border-radius:999px;background:#fff7ed;color:var(--warn);font-size:.82rem;font-weight:800;border:1px solid #fed7aa}
+.cc-review-score.ready{background:#f0fdf4;color:var(--good);border-color:#bbf7d0}
+.cc-review-progress{height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden}
+.cc-review-progress div{height:100%;background:var(--p);border-radius:999px;transition:width .25s}
+.cc-check{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.55rem}
+.cc-check li{display:flex;align-items:center;gap:.65rem;min-height:44px;padding:.65rem .75rem;border:1px solid #fed7aa;border-radius:10px;background:#fff7ed;color:var(--warn);font-weight:700}
+.cc-check li span:not(.cc-check-icon){flex:1;min-width:0}
+.cc-check-icon{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;background:#fff;color:var(--warn);flex-shrink:0}
+.cc-check li.ok{color:var(--ink);background:#f8fafc;border-color:var(--ln)}
+.cc-check li.ok .cc-check-icon{background:#f0fdf4;color:var(--good)}
+.cc-check li.ok svg{color:var(--good)}
+.cc-review-actions{display:flex;align-items:center;gap:.6rem;margin-top:.15rem}
+.cc-preview-card{overflow:hidden}
+.cc-preview-card .cc-review-card-head svg{color:var(--p);flex-shrink:0}
+.cc-preview-shell{border:1px solid #eef2f7;border-radius:12px;background:#f8fafc;padding:1rem;display:flex;justify-content:center;align-items:flex-start;overflow:hidden}
+.cc-preview-shell > *{width:100%;max-width:420px}
+@media(max-width:980px){.cc-review-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.cc-review-summary{grid-template-columns:1fr}.cc-review-actions{flex-direction:column}.cc-review-actions .cc-btn{width:100%}}
 
 /* modal */
 .cc-modal{position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.7);display:grid;place-items:center;padding:1rem}

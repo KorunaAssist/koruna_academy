@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { UserSessionData } from '../../services/auth';
 import type { Course, UserProgress } from '../../services/db';
-import { getCourseImage } from '../courses/CourseCard';
+import { CourseBannerHeader } from '../courses/CourseCard';
 
 export interface KorunaAcademyDashboardProps {
   userSession: UserSessionData;
@@ -31,6 +31,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   setSearchQuery
 }) => {
   const userName = userSession.name || 'Jessica Timon';
+  const [dismissedDoneAssignedCourseIds, setDismissedDoneAssignedCourseIds] = React.useState<string[]>([]);
 
   // Helper to find existing course or create a fallback course object for study view
   const getCourseById = (id: string, fallbackTitle: string, category: string): Course => {
@@ -45,7 +46,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
       level: 'Intermediate',
       description: `Comprehensive training program covering ${fallbackTitle}.`,
       imgBg: '#e0f2fe',
-      trainer: userSession.name || 'Dr. Marcus Vance',
+      trainer: userSession.name || 'Koruna Academy Trainer',
       lessons: [
         { id: `${id}-l1`, title: 'Module 1: Foundations & Fundamentals', content: 'Welcome to this essential training module.' },
         { id: `${id}-l2`, title: 'Module 2: Key Operational Frameworks', content: 'Detailed analysis of workflows and standards.' },
@@ -209,6 +210,11 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
   const formatCertificateDate = (date: Date) =>
     date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const formatDueDate = (value?: string) => {
+    if (!value) return null;
+    return parseDateOnly(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   const recentCertificates = userProgs
     .filter((progress) => progress.progressPercent === 100)
@@ -390,15 +396,13 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             gap: '1.5rem',
             flexWrap: 'wrap'
           }}>
-            {/* Course Image Box */}
-            <div style={{ width: '130px', height: '85px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
-              <img
-                src={getCourseImage(recentUndoneCourse)}
-                alt={recentUndoneCourse.title}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/course_card_default.png'; }}
-              />
-            </div>
+            {/* Course color banner */}
+            <CourseBannerHeader
+              course={{ ...recentUndoneCourse, imageUrl: undefined }}
+              height="85px"
+              borderRadius="12px"
+              style={{ width: '130px', flexShrink: 0 }}
+            />
 
             {/* Details */}
             <div style={{ flex: 1, minWidth: '240px' }}>
@@ -429,7 +433,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
               </div>
 
               <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                Trainer: {recentUndoneCourse.trainer || userSession.name || 'Dr. Marcus Vance'}
+                Trainer: {recentUndoneCourse.trainer || userSession.name || 'Koruna Academy Trainer'}
               </div>
             </div>
 
@@ -493,6 +497,10 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
               )
             );
 
+            if (prog?.progressPercent === 100 && dismissedDoneAssignedCourseIds.includes(c.id)) {
+              return false;
+            }
+
             const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
             const hasAssignedCourseFlag = !!c.isAssigned || (
               !!c.assignedUsers && c.assignedUsers.some((a) =>
@@ -532,6 +540,8 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                 const prog = userProgress.find((p) => p.courseId === course.id && (!p.userEmail || p.userEmail.toLowerCase().trim() === currentUserEmail));
                 const percent = prog ? prog.progressPercent : 0;
                 const isStarted = percent > 0;
+                const isComplete = percent === 100;
+                const dueDateText = formatDueDate(prog?.dueDate);
 
                 return (
                   <div
@@ -546,23 +556,16 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                       flexDirection: 'column'
                     }}
                   >
-                    <div style={{
-                      height: '110px',
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      position: 'relative',
-                      marginBottom: '1rem'
-                    }}>
-                      <img
-                        src={getCourseImage(course)}
-                        alt={course.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/course_card_default.png'; }}
-                      />
+                    <CourseBannerHeader
+                      course={{ ...course, imageUrl: undefined }}
+                      height="110px"
+                      borderRadius="12px"
+                      style={{ marginBottom: '1rem' }}
+                    >
                       <span style={{ position: 'absolute', top: '0.65rem', left: '0.65rem', border: '1px solid #fda4af', color: '#be185d', backgroundColor: '#ffffff', fontSize: '0.65rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
                         {course.level || 'INTERMEDIATE'}
                       </span>
-                    </div>
+                    </CourseBannerHeader>
 
                     <div style={{ marginBottom: '0.5rem' }}>
                       <span style={{ backgroundColor: '#fce7f3', color: '#be185d', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px' }}>
@@ -574,6 +577,30 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                       {course.title}
                     </h4>
 
+                    {dueDateText && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          marginBottom: '1rem',
+                          padding: '0.55rem 0.7rem',
+                          borderRadius: '8px',
+                          backgroundColor: prog?.overdue ? '#fef2f2' : '#f8fafc',
+                          color: prog?.overdue ? '#b91c1c' : '#475569',
+                          fontSize: '0.78rem'
+                        }}
+                      >
+                        <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Due
+                        </span>
+                        <strong style={{ color: prog?.overdue ? '#b91c1c' : '#202124', fontWeight: 800 }}>
+                          {dueDateText}
+                        </strong>
+                      </div>
+                    )}
+
                     <div style={{ marginTop: 'auto' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                         <div style={{ flex: 1, height: '5px', backgroundColor: '#e2e8f0', borderRadius: '50px', overflow: 'hidden' }}>
@@ -583,7 +610,16 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                       </div>
 
                       <button
-                        onClick={() => onStartStudy(course, prog?.applicationId)}
+                        onClick={() => {
+                          if (isComplete) {
+                            setDismissedDoneAssignedCourseIds((ids) => (
+                              ids.includes(course.id) ? ids : [...ids, course.id]
+                            ));
+                            return;
+                          }
+
+                          onStartStudy(course, prog?.applicationId);
+                        }}
                         style={{
                           width: '100%',
                           backgroundColor: isStarted ? '#be185d' : '#ffffff',
@@ -596,7 +632,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                           cursor: 'pointer'
                         }}
                       >
-                        {isStarted ? 'Continue' : 'Start'}
+                        {isComplete ? 'Done' : isStarted ? 'Continue' : 'Start'}
                       </button>
                     </div>
                   </div>
@@ -632,14 +668,12 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              <div style={{ width: '80px', height: '60px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
-                <img
-                  src={getCourseImage(courseVaSpecialist)}
-                  alt={courseVaSpecialist.title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/course_card_default.png'; }}
-                />
-              </div>
+              <CourseBannerHeader
+                course={{ ...courseVaSpecialist, imageUrl: undefined }}
+                height="60px"
+                borderRadius="10px"
+                style={{ width: '80px', flexShrink: 0 }}
+              />
               <div style={{ flex: 1 }}>
                 <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
                   Mortgage
@@ -669,14 +703,12 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              <div style={{ width: '80px', height: '60px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
-                <img
-                  src={getCourseImage(courseLeading)}
-                  alt={courseLeading.title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/course_card_default.png'; }}
-                />
-              </div>
+              <CourseBannerHeader
+                course={{ ...courseLeading, imageUrl: undefined }}
+                height="60px"
+                borderRadius="10px"
+                style={{ width: '80px', flexShrink: 0 }}
+              />
               <div style={{ flex: 1 }}>
                 <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
                   Leadership
@@ -706,14 +738,12 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              <div style={{ width: '80px', height: '60px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
-                <img
-                  src={getCourseImage(courseFinance)}
-                  alt={courseFinance.title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/course_card_default.png'; }}
-                />
-              </div>
+              <CourseBannerHeader
+                course={{ ...courseFinance, imageUrl: undefined }}
+                height="60px"
+                borderRadius="10px"
+                style={{ width: '80px', flexShrink: 0 }}
+              />
               <div style={{ flex: 1 }}>
                 <span style={{ backgroundColor: '#ccfbf1', color: '#0d9488', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
                   Finance
@@ -827,17 +857,56 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                       background: 'transparent',
                       color: '#ffffff',
                       textAlign: 'left',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
                     }}
                   >
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {course.title}
+                    <div style={{
+                      width: '78px',
+                      aspectRatio: '1.42 / 1',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      backgroundColor: '#ffffff',
+                      position: 'relative',
+                      flexShrink: 0,
+                      boxShadow: '0 6px 16px rgba(0,0,0,0.18)'
+                    }}>
+                      <img
+                        src="/Certificate.png"
+                        alt={`${course.title} certificate`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        top: '33%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '68%',
+                        color: '#b8185c',
+                        background: '#ffffff',
+                        fontSize: '0.24rem',
+                        lineHeight: 1,
+                        fontWeight: 800,
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {userName}
+                      </span>
                     </div>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.85, marginTop: '0.1rem' }}>
-                      Issued {formatCertificateDate(issuedAt)}
-                    </div>
-                    <div style={{ fontSize: '0.65rem', opacity: 0.7, marginTop: '0.1rem', fontWeight: 700 }}>
-                      {certificateId}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {course.title}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.85, marginTop: '0.1rem' }}>
+                        Issued {formatCertificateDate(issuedAt)}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', opacity: 0.7, marginTop: '0.1rem', fontWeight: 700 }}>
+                        {certificateId}
+                      </div>
                     </div>
                   </button>
                 ))

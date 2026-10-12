@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  BookOpen, Award,
+  Award,
   Search, LogOut,
   CheckCircle, Menu,
-  Play, Download, FileText
+  Download, FileText
 } from 'lucide-react';
 import type { UserSessionData, UserRole } from '../services/auth';
 import { dbService, calculateCourseLearningHours, type Course, type Lesson, type QuizQuestion, type UserProgress, type Badge, type PracticalSubmission, type Department, type SystemSettings, type RolePermissions, type DatabaseUser, type Notification } from '../services/db';
@@ -12,6 +12,7 @@ import { LoadingModal } from './LoadingModal';
 import { CourseStudyView } from './courses/CourseStudyView';
 import { CourseCard } from './courses/CourseCard';
 import { CertificateView } from './courses/CertificateView';
+import { LearningPathView } from './courses/LearningPathView';
 import { Sidebar } from './Sidebar';
 import { Header, HeaderActions } from './Header';
 import { UnderDevelopment } from './UnderDevelopment';
@@ -215,7 +216,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
     } catch (e) { }
 
-    const employees = loadedUsers.filter(u => u.role === 'employee');
+    const employees = loadedUsers.filter(u => Boolean(u.email));
     const teamProgMap: Record<string, UserProgress[]> = {};
     await Promise.all(
       employees.map(async (emp) => {
@@ -625,7 +626,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
 
     // Process assignments
-    const employees = users.filter(u => u.role === 'employee');
+    const employees = users.filter(u => Boolean(u.email));
     await Promise.all(
       employees.map(async (emp) => {
         const empProgList = await dbService.getUserProgress(emp.email);
@@ -681,7 +682,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       description: course.description,
       imgBg: course.imgBg,
       imageUrl: course.imageUrl || '',
-      trainer: course.trainer || userSession.name || 'Dr. Marcus Vance',
+      trainer: course.trainer || userSession.name || 'Koruna Academy Trainer',
       attachments: course.attachments || [],
       contentType: course.contentType || 'course',
       requiresCertification: course.requiresCertification !== undefined ? course.requiresCertification : true,
@@ -710,7 +711,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     // Find all users who are currently assigned this course
     const currentlyAssigned: string[] = [];
     const assignedDueDates: string[] = [];
-    users.filter(u => u.role === 'employee').forEach(emp => {
+    users.filter(u => Boolean(u.email)).forEach(emp => {
       const empProgList = teamProgress[emp.email.toLowerCase()] || [];
       const assignedProgress = empProgList.find(p => p.courseId === course.id && p.dueDate);
       if (assignedProgress) {
@@ -1157,92 +1158,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 3: LEARNING PATH */}
             {activeTab === 'learning_path' && (
-              <div className="koruna-subview-wrapper" style={{ padding: '0', border: 'none', background: 'transparent', boxShadow: 'none' }}>
-                {courses.length > 0 && (
-                  <div style={{ background: '#1c1d1f', color: '#ffffff', padding: '2rem', borderRadius: '12px', marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem', boxShadow: 'var(--koruna-card-shadow)' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#aa1555', background: '#fbeef4', padding: '0.25rem 0.5rem', borderRadius: '4px' }}>
-                        RECOMMENDED NEXT LESSON
-                      </span>
-                      <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '0.75rem', marginBottom: '0.5rem' }}>
-                        {courses[0].title}: Lesson 1
-                      </h2>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem', color: '#d1d7dc' }}>
-                        <span>Interactive Video & Reading Material</span>
-                        <span>⭐ {courses[0].rating} ({courses[0].level})</span>
-                      </div>
-                    </div>
-
-                    <button
-                      className="btn-koruna-solid"
-                      style={{ height: '48px', padding: '0 2rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                      onClick={() => handleStartStudy(courses[0])}
-                    >
-                      <Play size={18} fill="#ffffff" />
-                      <span>Resume Learning</span>
-                    </button>
-                  </div>
-                )}
-
-                {(() => {
-                  const currentUserEmail = (userSession?.email || '').toLowerCase().trim();
-                  const assigned = courses.filter(c => {
-                    const prog = userProgress.find(
-                      p => p.courseId === c.id && (
-                        !p.userEmail || (currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail)
-                      )
-                    );
-
-                    const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
-                    const hasAssignedCourseFlag = !!c.isAssigned || (
-                      !!c.assignedUsers && c.assignedUsers.some(a =>
-                        (userSession.id && String(a.userId).toLowerCase().trim() === String(userSession.id).toLowerCase().trim()) ||
-                        (userSession.email && String(a.userId).toLowerCase().trim() === currentUserEmail) ||
-                        (currentUserEmail && currentUserEmail.includes(String(a.userId).toLowerCase().trim()))
-                      )
-                    );
-
-                    return hasAssignedProgress || hasAssignedCourseFlag;
-                  }).map(c => {
-                    const prog = userProgress.find(p => p.courseId === c.id && (!p.userEmail || p.userEmail.toLowerCase().trim() === currentUserEmail));
-                    return { ...c, prog };
-                  });
-
-                  return (
-                    <>
-                      <h3 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <BookOpen size={20} style={{ color: 'var(--koruna-primary)' }} />
-                        My Assigned Courses & Learning Pathways
-                      </h3>
-
-                      {assigned.length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: '1.5rem' }}>
-                          {assigned.map((c, idx) => {
-                            const keyId = c.prog?.applicationId ? `${c.id}-${c.prog.applicationId}` : `${c.id}-${idx}`;
-                            return (
-                              <CourseCard
-                                key={keyId}
-                                course={c}
-                                variant="simple"
-                                applicationId={c.prog?.applicationId}
-                                onActionClick={() => handleStartStudy(c, c.prog?.applicationId)}
-                              />
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '3rem', textAlign: 'center', color: '#64748b', border: '1px dashed #cbd5e1' }}>
-                          <BookOpen size={36} style={{ color: 'var(--koruna-primary)', marginBottom: '1rem', opacity: 0.5 }} />
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem' }}>No Assigned Courses Found</h4>
-                          <p style={{ fontSize: '0.9rem', margin: 0 }}>You currently have no courses assigned to your learning path.</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
+              <LearningPathView
+                courses={courses}
+                userProgress={userProgress}
+                onStartStudy={handleStartStudy}
+              />
             )}
-
             {/* TAB 4: MY PROGRESS DETAIL */}
             {activeTab === 'progress' && (
               <div className="koruna-subview-wrapper">
@@ -1560,7 +1481,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', backgroundColor: '#ffffff' }}>
                       <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1rem' }}>Employee Standings & Quiz Scores</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {users.filter(u => u.role === 'employee').map((emp) => {
+                        {users.filter(u => Boolean(u.email)).map((emp) => {
                           const userProgList = teamProgress[emp.email.toLowerCase()] || [];
                           return (
                             <div key={emp.email} style={{ padding: '1rem', border: '1px solid var(--koruna-border-color)', borderRadius: '8px' }}>
@@ -1619,7 +1540,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1rem' }}>Assign Training Plan</h3>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {users.filter(u => u.role === 'employee').map((emp) => (
+                      {users.filter(u => Boolean(u.email)).map((emp) => (
                         <div key={emp.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid var(--koruna-border-color)', borderRadius: '8px', flexWrap: 'wrap', gap: '1rem' }}>
                           <div>
                             <div style={{ fontWeight: 700 }}>{emp.name}</div>
@@ -1759,6 +1680,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             userSession={userSession}
             issueDate={viewingCertificate.date}
             certificateId={viewingCertificate.id}
+            trainerName={viewingCertificate.course.trainer}
             onBack={() => setViewingCertificate(null)}
             showToast={showToast}
           />

@@ -20,7 +20,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
   userSession,
   issueDate,
   certificateId,
-  trainerName = 'Dr. Marcus Vance',
+  trainerName,
   onBack,
   onDone,
   showToast,
@@ -30,6 +30,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
   const displayCertificateId = certificateId || `KA-${course?.code || 'MB'}-2026-${Math.floor(100000 + Math.random() * 900000)}`;
   const displayIssueDate = issueDate || 'June 14, 2026';
   const displayCourseTitle = course?.title || 'Senior Mortgage: VA Loan Specialist';
+  const displayTrainerName = course?.trainer?.trim() || trainerName?.trim() || 'Koruna Academy Trainer';
   const [showDoneModal, setShowDoneModal] = useState(false);
 
   // Close on Escape key press
@@ -209,7 +210,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
             height: 'auto',
             display: 'block',
             userSelect: 'none'
-          }}
+          }}  
         />
 
         {/* ── Dynamic Text Overlays ── */}
@@ -217,7 +218,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
         {/* 1. Recipient Name Overlay */}
         <div style={{
           position: 'absolute',
-          top: '31%',
+          top: '37.3%',
           left: '50%',
           transform: 'translateX(-50%)',
           width: '68%',
@@ -285,7 +286,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
             color: '#111827',
             fontFamily: 'Inter, system-ui, sans-serif'
           }}>
-            {trainerName}
+            {displayTrainerName}
           </span>
         </div>
 
@@ -466,7 +467,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
     return (
       <>
         <div
-          className="koruna-modal-overlay no-print"
+          className="koruna-modal-overlay"
           onClick={onBack}
           style={{
             position: 'fixed',

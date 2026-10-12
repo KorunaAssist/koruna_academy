@@ -105,7 +105,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
       <aside className={`koruna-sidebar ${isMobileSidebarOpen ? 'mobile-open' : ''}`}>
         <div className="koruna-sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-          {userSession.role === 'trainer' ? (
+          {userSession.role === 'admin' && activeTab === 'admin_suite' ? (
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}
+              onClick={() => {
+                setStudyingCourse(null);
+                onTabChange('admin_suite');
+                setActiveInnerTab?.('overview');
+                setIsMobileSidebarOpen(false);
+              }}
+            >
+              <img
+                src="/Wkorunalogo.png"
+                alt="Koruna Academy Logo"
+                className="koruna-sidebar-logo-img"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src.endsWith('/korunalogo.png')) {
+                    img.src = '/logo.svg';
+                  }
+                }}
+              />
+            </div>
+          ) : userSession.role === 'trainer' ? (
             <div
               style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
               onClick={() => {
@@ -124,17 +146,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           ) : isAcademyMode ? (
             <div
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}
               onClick={() => {
                 setStudyingCourse(null);
                 onTabChange('catalog');
                 setIsMobileSidebarOpen(false);
               }}
             >
-              <GraduationCap size={22} style={{ color: '#db2777' }} />
-              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
-                Koruna Academy
-              </span>
+              <img
+                src="/Korunaacademy.png"
+                alt="Koruna Academy Logo"
+                className="koruna-sidebar-logo-img"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src.endsWith('/Korunaacademy.png')) {
+                    img.src = '/Wkorunalogo.png';
+                  }
+                }}
+              />
             </div>
           ) : (
             <div
@@ -149,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 src="/Wkorunalogo.png"
                 alt="Koruna Life Logo"
                 className="koruna-sidebar-logo-img"
-                style={{ height: '28px', width: 'auto', display: 'block' }}
+                style={{ height: '72px', width: 'auto', display: 'block' }}
                 onError={(e) => {
                   const img = e.currentTarget;
                   if (img.src.endsWith('/korunalogo.png')) {
@@ -169,11 +198,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <AdminSidebar
               activeTab={activeTab}
               activeInnerTab={activeInnerTab}
-              studyingCourse={studyingCourse}
               setStudyingCourse={setStudyingCourse}
               onTabChange={onTabChange}
               setActiveInnerTab={setActiveInnerTab}
               setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+              userRole={userSession.role}
             />
           ) : isAcademyMode ? (
             <>
@@ -233,7 +262,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* BOTTOM SIDEBAR FOOTER: Notifications & Profile & Settings */}
-        <div className="koruna-sidebar-footer" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', padding: '0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        <div className="koruna-sidebar-footer" style={{ padding: '0.65rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
           <button
             className={`koruna-sidebar-item ${activeTab === 'notifications' && !studyingCourse ? 'active' : ''}`}
             onClick={() => {

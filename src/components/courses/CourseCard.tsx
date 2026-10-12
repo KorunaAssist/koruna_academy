@@ -14,6 +14,33 @@ import {
 } from 'lucide-react';
 import type { Course } from '../../services/db';
 
+const clampColorChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+
+const normalizeHexColor = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const shortMatch = trimmed.match(/^#([0-9a-f]{3})$/i);
+  if (shortMatch) {
+    return `#${shortMatch[1].split('').map(ch => `${ch}${ch}`).join('')}`;
+  }
+  return /^#[0-9a-f]{6}$/i.test(trimmed) ? trimmed : null;
+};
+
+const shadeHexColor = (hex: string, amount: number) => {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return hex;
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  const shade = (channel: number) => amount >= 0
+    ? channel + (255 - channel) * amount
+    : channel * (1 + amount);
+
+  return `#${[shade(r), shade(g), shade(b)]
+    .map(channel => clampColorChannel(channel).toString(16).padStart(2, '0'))
+    .join('')}`;
+};
+
 export const getCourseBannerStyle = (course?: Partial<Course> | null) => {
   const bg = course?.imgBg || '#e0f2fe';
 
@@ -66,6 +93,17 @@ export const getCourseBannerStyle = (course?: Partial<Course> | null) => {
     return {
       gradient: bg,
       accentColor: '#ffffff',
+      textColor: '#ffffff',
+      chipBg: 'rgba(255, 255, 255, 0.2)',
+      chipColor: '#ffffff'
+    };
+  }
+
+  const customHex = normalizeHexColor(bg);
+  if (customHex) {
+    return {
+      gradient: `linear-gradient(135deg, ${shadeHexColor(customHex, 0.06)} 0%, ${shadeHexColor(customHex, -0.26)} 100%)`,
+      accentColor: shadeHexColor(customHex, 0.68),
       textColor: '#ffffff',
       chipBg: 'rgba(255, 255, 255, 0.2)',
       chipColor: '#ffffff'
@@ -253,6 +291,7 @@ interface CourseCardProps {
   variant: 'employee' | 'trainer' | 'admin' | 'simple' | 'catalogue';
   percent?: number;
   isOverdue?: boolean;
+  dueDate?: string;
   applicationId?: number | null;
   onActionClick?: () => void;
   onEditClick?: () => void;
@@ -266,14 +305,22 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   variant,
   percent = 0,
   isOverdue = false,
+  dueDate,
   applicationId = null,
   onActionClick,
   onEditClick,
   onDeleteClick
 }) => {
+  const formattedDueDate = React.useMemo(() => {
+    if (!dueDate) return null;
+    const parsed = new Date(`${dueDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return dueDate;
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [dueDate]);
+
   if (variant === 'employee') {
     return (
-      <div className="koruna-assigned-course-card">
+      <div className="koruna-assigned-course-card google-classroom-card">
         <CourseBannerHeader course={course} height="140px" borderRadius="12px 12px 0 0">
           {course.code && (
             <div style={{ background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', padding: '2px 8px', borderRadius: '6px', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700, width: 'fit-content' }}>
@@ -303,6 +350,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <span>{percent}%</span>
           </div>
         </div>
+        {formattedDueDate && (
+          <div className={`koruna-card-due-date ${isOverdue ? 'overdue' : ''}`}>
+            <span>Due</span>
+            <strong>{formattedDueDate}</strong>
+          </div>
+        )}
         <button className="btn-assigned-course-action" onClick={onActionClick}>
           {percent === 100
             ? (course.requiresCertification !== false ? 'View Certificate' : (course.contentType === 'document' ? 'Review Document' : 'Review Course'))
@@ -316,7 +369,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
   if (variant === 'trainer') {
     return (
-      <div className="koruna-assigned-course-card" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="koruna-assigned-course-card google-classroom-card" style={{ display: 'flex', flexDirection: 'column' }}>
         <CourseBannerHeader course={course} height="140px" borderRadius="12px 12px 0 0">
           {course.code && (
             <div style={{ background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', padding: '2px 8px', borderRadius: '6px', color: '#ffffff', fontSize: '0.75rem', fontWeight: 700, width: 'fit-content' }}>
@@ -353,7 +406,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     const isDoc = course.contentType === 'document';
     return (
       <div
-        className="koruna-assigned-course-card"
+        className="koruna-assigned-course-card google-classroom-card"
         style={{
           padding: '0',
           display: 'flex',
@@ -486,7 +539,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     }
 
     return (
-      <div className="koruna-catalogue-card">
+      <div className="koruna-catalogue-card google-classroom-card">
         <CourseBannerHeader course={course} height="140px" borderRadius="12px 12px 0 0" className="koruna-catalogue-thumb-wrap">
           <span className="koruna-catalogue-level-badge">{levelText}</span>
         </CourseBannerHeader>
@@ -499,6 +552,13 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             {statusText}
           </span>
         </div>
+
+        {formattedDueDate && (
+          <div className={`koruna-card-due-date ${isOverdue ? 'overdue' : ''}`}>
+            <span>Due</span>
+            <strong>{formattedDueDate}</strong>
+          </div>
+        )}
 
         <h3 className="koruna-catalogue-title" title={course.title}>
           {course.title}
@@ -528,7 +588,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
   // variant === 'simple'
   return (
-    <div className="koruna-assigned-course-card" style={{ cursor: 'pointer' }} onClick={onActionClick}>
+    <div className="koruna-assigned-course-card google-classroom-card" style={{ cursor: 'pointer' }} onClick={onActionClick}>
       <CourseBannerHeader course={course} height="140px" borderRadius="8px">
         {course.code && (
           <span style={{ position: 'absolute', bottom: '8px', left: '8px', fontSize: '0.75rem', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', color: '#fff', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: 700 }}>

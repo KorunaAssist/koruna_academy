@@ -132,6 +132,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
         <CertificateView
           course={studyingCourse}
           userSession={userSession || { name: 'Valued Learner', email: '', role: 'employee' }}
+          trainerName={studyingCourse.trainer}
           onBack={() => setActiveLessonIdx(0)}
           onDone={onDone || (() => { if (setStudyingCourse) setStudyingCourse(null); else setActiveLessonIdx(0); })}
           showToast={showToast}

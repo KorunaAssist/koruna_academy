@@ -391,7 +391,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 </h1>
 
                 <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.95rem', opacity: 0.9, flexWrap: 'wrap' }}>
-                  <span>Trainer: <strong style={{ fontWeight: 600 }}>{studyingCourse.trainer || 'Dr. Marcus Vance'}</strong></span>
+                  <span>Trainer: <strong style={{ fontWeight: 600 }}>{studyingCourse.trainer || 'Koruna Academy Trainer'}</strong></span>
                   <span>•</span>
                   <span>{totalModules} modules - {studyingCourse.lessons.length} lessons</span>
                 </div>
@@ -984,6 +984,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           userSession={userSession || { name: 'Jessica Timon', email: '', role: 'employee' }}
           issueDate={new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
           certificateId={`CERT-${studyingCourse.id.toUpperCase()}-2026`}
+          trainerName={studyingCourse.trainer}
           onBack={() => setShowCertModal(false)}
           onDone={() => setShowCertModal(false)}
           showToast={showToast}
