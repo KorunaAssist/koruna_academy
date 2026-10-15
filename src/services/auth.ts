@@ -153,8 +153,11 @@ export async function signUpUser(
   pass: string,
   fullName: string,
   department: string,
-  role: UserRole = 'employee'
+  role: UserRole = 'employee',
 ): Promise<AuthResult> {
+  if (!isSupabaseConfigured() && !import.meta.env.DEV) {
+    return { success: false, error: 'Authentication is unavailable. Please contact your administrator.' };
+  }
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedFullName = fullName.trim();
 
@@ -267,9 +270,10 @@ const DEMO_PRESETS: Record<string, { name: string; role: UserRole; department: s
  */
 export async function signInUser(
   email: string,
-  pass: string
+  pass: string,
 ): Promise<AuthResult> {
   if (!isSupabaseConfigured()) {
+    if (!import.meta.env.DEV) return { success: false, error: 'Authentication is unavailable. Please contact your administrator.' };
     // Demo mode fallback
     const emailLower = email.toLowerCase();
     const preset = DEMO_PRESETS[emailLower];
@@ -288,7 +292,7 @@ export async function signInUser(
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
-    password: pass
+    password: pass,
   });
 
   if (error) {
@@ -321,6 +325,7 @@ export async function signInWithSSO(
   metadata?: { role?: UserRole; department?: string; fullName?: string; email?: string }
 ): Promise<{ success: boolean; data?: UserSessionData; error?: string }> {
   if (!isSupabaseConfigured()) {
+    if (!import.meta.env.DEV) return { success: false, error: 'Authentication is unavailable. Please contact your administrator.' };
     const name = metadata?.fullName || (provider === 'google' ? 'Google Learner' : 'Jordan Taylor (SSO)');
     const role = metadata?.role || 'employee';
     const email = metadata?.email || (provider === 'google' ? 'google.user@koruna.com' : 'jordan.taylor@koruna.com');
@@ -382,16 +387,26 @@ export async function getCurrentUserSession(): Promise<UserSessionData | null> {
  */
 export function subscribeToAuthChanges(callback: (user: UserSessionData | null) => void): () => void {
   if (!isSupabaseConfigured()) return () => {};
-
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session?.user) {
-      callback(await getSessionDataFromSupabaseUser(session.user));
-    } else {
-      callback(null);
-    }
+  let active = true;
+  let revision = 0;
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Recovery belongs to its own screen/client and must never open the dashboard.
+    if (event === 'PASSWORD_RECOVERY') return;
+    const current = ++revision;
+    // Supabase callbacks run under its auth lock. Defer SDK/database calls until it releases.
+    window.setTimeout(() => {
+      if (!active || current !== revision) return;
+      if (!session?.user) { callback(null); return; }
+      void getSessionDataFromSupabaseUser(session.user).then(user => {
+        if (active && current === revision) callback(user);
+      }).catch(() => {
+        if (active && current === revision) callback(null);
+      });
+    }, 0);
   });
 
   return () => {
+    active = false;
     subscription.unsubscribe();
   };
 }

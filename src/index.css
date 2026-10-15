@@ -930,6 +930,22 @@ body {
   text-decoration: underline;
 }
 
+.koruna-recovery-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--koruna-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.koruna-recovery-link:disabled { opacity: 0.6; cursor: not-allowed; }
+.koruna-recovery-back { display: block; margin: 1.5rem auto 0; }
+.koruna-recovery-message { padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px; background: #eff6ff; color: #1e40af; line-height: 1.5; }
+.koruna-recovery-error { background: #fce8e6; color: #a61b14; }
+
 .koruna-login-btn-primary {
   width: 100%;
   height: 52px;

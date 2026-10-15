@@ -4,6 +4,7 @@ import { LoginForm } from './LoginForm';
 import type { UserSessionData } from '../services/auth';
 
 interface LoginPageViewProps {
+  onNavigateForgotPassword: () => void;
   onNavigateSignup: () => void;
   onLoginSuccess: (user: UserSessionData) => void;
   sessionExpiredNotice?: string | null;
@@ -11,6 +12,7 @@ interface LoginPageViewProps {
 }
 
 export const LoginPageView: React.FC<LoginPageViewProps> = ({
+  onNavigateForgotPassword,
   onNavigateSignup,
   onLoginSuccess,
   sessionExpiredNotice,
@@ -31,6 +33,7 @@ export const LoginPageView: React.FC<LoginPageViewProps> = ({
         {/* Right Side: Login Form */}
         <div className="koruna-login-form-panel">
           <LoginForm
+            onNavigateForgotPassword={onNavigateForgotPassword}
             onLoginSuccess={onLoginSuccess}
             onNavigateSignup={onNavigateSignup}
             sessionExpiredNotice={sessionExpiredNotice}

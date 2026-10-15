@@ -4,6 +4,7 @@ import { SignupPageView } from './components/SignupPageView';
 import { DashboardView } from './components/DashboardView';
 import { SessionWarningModal } from './components/SessionWarningModal';
 import { LoadingModal } from './components/LoadingModal';
+import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import {
   getCurrentUserSession,
@@ -34,7 +35,8 @@ export function App() {
     | 'admin_suite'
     | 'notifications'
     | 'settings';
-  const [currentView, setCurrentView] = useState<'login' | 'signup' | 'dashboard'>('login');
+  const [recoveryRoute, setRecoveryRoute] = useState(() => window.location.pathname.replace(/\/$/, '') === '/reset-password');
+  const [currentView, setCurrentView] = useState<'login' | 'signup' | 'forgot-password' | 'dashboard'>('login');
   const [activeTab, setActiveTabState] = useState<ActiveTabType>(() => {
     try {
       const saved = localStorage.getItem('koruna_active_tab');
@@ -104,18 +106,22 @@ export function App() {
   });
 
   useEffect(() => {
+    if (recoveryRoute) return;
+    let active = true;
     // Check if user has an active Supabase session on mount
     async function checkSession() {
       try {
         const activeUser = await getCurrentUserSession();
-        if (activeUser) {
+        if (active && activeUser) {
           setUserSession(activeUser);
           setCurrentView('dashboard');
           const savedTab = localStorage.getItem('koruna_active_tab') as ActiveTabType | null;
           setActiveTab(getDefaultTabForUser(activeUser, savedTab));
         }
+      } catch {
+        if (active) setUserSession(null);
       } finally {
-        setHasCheckedAuthSession(true);
+        if (active) setHasCheckedAuthSession(true);
       }
     }
     checkSession();
@@ -136,9 +142,10 @@ export function App() {
     });
 
     return () => {
+      active = false;
       unsubscribe();
     };
-  }, []);
+  }, [recoveryRoute]);
 
   const handleAuthSuccess = (user: UserSessionData) => {
     setUserSession(user);
@@ -162,6 +169,13 @@ export function App() {
     setSessionExpiredFlag(false);
   };
 
+  if (recoveryRoute || currentView === 'forgot-password') {
+    return <PasswordRecoveryPage mode={recoveryRoute ? 'reset' : 'request'} onBack={() => {
+      setRecoveryRoute(false);
+      setCurrentView('login');
+    }} />;
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Session Expiration Warning Modal */}
@@ -177,6 +191,7 @@ export function App() {
       {/* View Router */}
       {hasCheckedAuthSession && currentView === 'login' && (
         <LoginPageView
+          onNavigateForgotPassword={() => setCurrentView('forgot-password')}
           onNavigateSignup={() => setCurrentView('signup')}
           onLoginSuccess={handleAuthSuccess}
           sessionExpiredNotice={sessionExpiredNotice}

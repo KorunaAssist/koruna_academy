@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { isRecoveryLocation } from '../services/passwordRecovery';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = (): boolean => {
   return (
@@ -14,5 +15,8 @@ export const isSupabaseConfigured = (): boolean => {
 
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key'
+  supabaseAnonKey || 'placeholder-anon-key',
+  { auth: {
+    detectSessionInUrl: !isRecoveryLocation(new URL(window.location.href)),
+  } },
 );
