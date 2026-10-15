@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from '../lib/supabase';
 import { LoadingModal } from './LoadingModal';
 
 interface LoginFormProps {
+  onNavigateForgotPassword: () => void;
   onLoginSuccess: (userData: UserSessionData) => void;
   onNavigateSignup?: () => void;
   sessionExpiredNotice?: string | null;
@@ -32,6 +33,7 @@ const KorunaLogo: React.FC = () => {
 };
 
 export const LoginForm: React.FC<LoginFormProps> = ({
+  onNavigateForgotPassword,
   onLoginSuccess,
   onNavigateSignup,
   sessionExpiredNotice,
@@ -95,7 +97,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     }
 
     // Check if matched preset for richer demo role display
-    const matchedRole = DEMO_ROLES[email.toLowerCase()];
+    const matchedRole = !isSupabaseConfigured() && import.meta.env.DEV ? DEMO_ROLES[email.toLowerCase()] : undefined;
 
     onLoginSuccess({
       ...result.data,
@@ -248,16 +250,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             <span>Remember me</span>
           </label>
           
-          <a
-            href="#forgot"
-            className="koruna-login-forgot-link"
-            onClick={(e) => {
-              e.preventDefault();
-              alert("Forgot password instructions sent!");
-            }}
+          <button
+            type="button"
+            className="koruna-login-forgot-link koruna-recovery-link"
+            onClick={onNavigateForgotPassword}
+            disabled={isLoading}
           >
             Forgot password?
-          </a>
+          </button>
         </div>
 
         <button type="submit" className="koruna-login-btn-primary" disabled={isLoading}>
