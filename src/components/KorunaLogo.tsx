@@ -13,7 +13,7 @@ export const KorunaLogoSvg: React.FC<{
   color = '#AF1F60',
   useGradient = false
 }) => {
-  const gradientId = React.useId ? React.useId() : 'koruna-logo-grad';
+  const gradientId = React.useId();
   
   return (
     <svg
