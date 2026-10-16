@@ -20,6 +20,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import type { UserSessionData } from '../services/auth';
+import { canAccessTab } from '../services/authorization';
 import type { Course } from '../services/db';
 import { AdminSidebar } from './admin/AdminSidebar';
 
@@ -67,7 +68,8 @@ const KORUNA_ACADEMY_NAV: NavParentItem[] = [
   { id: 'progress', label: 'My Progress', icon: PieChart },
   { id: 'certificates', label: 'My Certificates', icon: Award },
   { id: 'skills', label: 'Skills Dashboard', icon: Sliders },
-  { id: 'career_path', label: 'Career Path', icon: TrendingUp }
+  { id: 'career_path', label: 'Career Path', icon: TrendingUp },
+  { id: 'team_reports', label: 'Team Reports', icon: PieChart }
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -89,7 +91,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'progress',
     'certificates',
     'skills',
-    'career_path'
+    'career_path',
+    'team_reports'
   ].includes(activeTab);
 
   const handleItemClick = (id: string) => {
@@ -223,7 +226,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               {/* KORUNA ACADEMY SIDEBAR MENU */}
-              {KORUNA_ACADEMY_NAV.map((item) => {
+              {KORUNA_ACADEMY_NAV.filter(item => canAccessTab(userSession.role, item.id)).map((item) => {
                 const IconComponent = item.icon;
                 const isActive = activeTab === item.id && !studyingCourse;
 
