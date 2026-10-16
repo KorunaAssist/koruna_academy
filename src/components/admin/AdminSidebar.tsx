@@ -60,24 +60,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 }) => {
   const navItems = (userRole === 'trainer' ? TRAINER_NAV_ITEMS : ADMIN_NAV_ITEMS)
     .filter(item => canAccessAdminTab(userRole, item.targetTab || item.id));
-  const getSelectedItemId = React.useCallback((innerTab: string) => (
-    navItems.find((item) => item.id === innerTab)?.id ||
-    navItems.find((item) => item.targetTab === innerTab)?.id ||
-    navItems[0]?.id ||
-    innerTab
-  ), [navItems]);
-
-  const [selectedItemId, setSelectedItemId] = React.useState(getSelectedItemId(activeInnerTab));
-
-  React.useEffect(() => {
-    const selectedItem = navItems.find((item) => item.id === selectedItemId);
-    if (selectedItem?.targetTab === activeInnerTab) return;
-    setSelectedItemId(getSelectedItemId(activeInnerTab));
-  }, [activeInnerTab, getSelectedItemId, navItems, selectedItemId]);
+  const selectedItemId = navItems.find(
+    item => (item.targetTab || item.id) === activeInnerTab
+  )?.id;
 
   const handleNavClick = (item: AdminNavItem) => {
     const targetTab = item.targetTab || item.id;
-    setSelectedItemId(item.id);
     setStudyingCourse(null);
     onTabChange('admin_suite');
     setActiveInnerTab?.(targetTab);

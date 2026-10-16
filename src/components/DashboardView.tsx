@@ -970,6 +970,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           studyingCourse={studyingCourse}
           setStudyingCourse={setStudyingCourse}
           setActiveInnerTab={setActiveInnerTab}
+          activeInnerTab={activeInnerTab}
           userPerms={userPerms}
           handleSignOutClick={handleSignOutClick}
         />
