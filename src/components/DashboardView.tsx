@@ -18,6 +18,7 @@ import { Header, HeaderActions } from './Header';
 import { UnderDevelopment } from './UnderDevelopment';
 import { KorunaHomeView } from './koruna/KorunaHomeView';
 import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
+import { can, canManageCourse, safeTab } from '../services/authorization';
 
 interface DashboardViewProps {
   userSession: UserSessionData;
@@ -28,10 +29,11 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   userSession,
-  activeTab,
+  activeTab: requestedTab,
   onTabChange,
   onSignOut
 }) => {
+  const activeTab = safeTab(userSession.role, requestedTab);
   // --- CORE SYSTEM STATE ---
   const [courses, setCourses] = useState<Course[]>([]);
   const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
@@ -186,45 +188,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Fetch all states from dbService
   const loadPlatformData = async () => {
-    const loadedCourses = await dbService.getCourses();
-    const loadedProgress = await dbService.getUserProgress(userSession.email);
-    const loadedBadges = await dbService.getUserBadges(userSession.email);
-    const loadedPracticals = await dbService.getPracticalSubmissions();
-    const loadedUsers = await dbService.getUsers();
-    const loadedDeps = dbService.getDepartments();
-    const loadedSettings = dbService.getSettings();
-    const loadedPerms = dbService.getPermissions();
-    const loadedNotifs = await dbService.getNotifications(userSession.email);
-
-    setCourses(loadedCourses);
-    setUserProgress(loadedProgress);
-    setBadges(loadedBadges);
-    setPracticals(loadedPracticals);
-    setUsers(loadedUsers);
-    setDepartments(loadedDeps);
-    setSettings(loadedSettings);
-    setPermissions(loadedPerms);
-    setNotifications(loadedNotifs);
-
     try {
-      const savedCourseId = localStorage.getItem('koruna_studying_course_id');
-      if (savedCourseId) {
-        const found = loadedCourses.find(c => c.id === savedCourseId);
-        if (found) {
-          setStudyingCourseState(found);
-        }
-      }
-    } catch (e) { }
+      const loadedCourses = await dbService.getCourses();
+      const loadedProgress = await dbService.getUserProgress(userSession.email);
+      const loadedBadges = await dbService.getUserBadges(userSession.email);
+      const loadedPracticals = await dbService.getPracticalSubmissions();
+      const loadedUsers = await dbService.getUsers();
+      const loadedDeps = dbService.getDepartments();
+      const loadedSettings = dbService.getSettings();
+      const loadedPerms = dbService.getPermissions();
+      const loadedNotifs = await dbService.getNotifications(userSession.email);
 
-    const employees = loadedUsers.filter(u => Boolean(u.email));
-    const teamProgMap: Record<string, UserProgress[]> = {};
-    await Promise.all(
-      employees.map(async (emp) => {
-        const prog = await dbService.getUserProgress(emp.email);
-        teamProgMap[emp.email.toLowerCase()] = prog;
-      })
-    );
-    setTeamProgress(teamProgMap);
+      setCourses(loadedCourses);
+      setUserProgress(loadedProgress);
+      setBadges(loadedBadges);
+      setPracticals(loadedPracticals);
+      setUsers(loadedUsers);
+      setDepartments(loadedDeps);
+      setSettings(loadedSettings);
+      setPermissions(loadedPerms);
+      setNotifications(loadedNotifs);
+
+      try {
+        const savedCourseId = localStorage.getItem('koruna_studying_course_id');
+        if (savedCourseId) {
+          const found = loadedCourses.find(c => c.id === savedCourseId);
+          if (found) {
+            setStudyingCourseState(found);
+          }
+        }
+      } catch (e) { }
+
+      const employees = loadedUsers.filter(u => Boolean(u.email));
+      const teamProgMap: Record<string, UserProgress[]> = {};
+      await Promise.all(
+        employees.map(async (emp) => {
+          const prog = await dbService.getUserProgress(emp.email);
+          teamProgMap[emp.email.toLowerCase()] = prog;
+        })
+      );
+      setTeamProgress(teamProgMap);
+    } catch (error) {
+      setCourses([]);
+      setUsers([]);
+      setPracticals([]);
+      setTeamProgress({});
+      setUserProgress([]);
+      setNotifications([]);
+      setToastMessage(error instanceof Error ? error.message : 'Unable to load authorized platform data.');
+    }
   };
 
   useEffect(() => {
@@ -343,47 +355,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // EMPLOYEE CAPABILITIES & EVENTS
   // ==========================================
 
-  const handleStartStudy = (course: Course, applicationId?: number) => {
-    setStudyingCourse(course);
-    setStudyingAssignmentId(applicationId || null);
-    setActiveLessonIdx(-1);
-    setQuizAnswers({});
-    setQuizTextAnswers({});
-    setQuizSubmitted(false);
-    setPracticalText('');
-
-    // Update lastViewedAt timestamp for the course so it tracks recent viewing
-    const now = new Date().toISOString();
-    dbService.getUserProgress(userSession.email).then(progressList => {
-      let prog = progressList.find(
-        p => p.courseId === course.id && (applicationId === undefined || p.applicationId === applicationId)
-      );
-      if (prog) {
-        prog.lastViewedAt = now;
-        dbService.saveUserProgress(prog).then(() => loadPlatformData());
-      } else {
-        const newProg: UserProgress = {
-          userEmail: userSession.email.toLowerCase(),
-          courseId: course.id,
-          applicationId: applicationId,
-          progressPercent: 0,
-          completedLessons: [],
-          quizAttempts: 0,
-          practicalStatus: 'none',
-          overdue: false,
-          lastViewedAt: now
-        };
-        dbService.saveUserProgress(newProg).then(() => loadPlatformData());
-      }
-    }).catch(err => {
-      console.error('Error updating lastViewedAt on start study:', err);
-    });
+  const handleStartStudy = async (course: Course, applicationId?: number) => {
+    try {
+      const progressList = await dbService.getUserProgress(userSession.email);
+      const existing = progressList.find(p => p.courseId === course.id &&
+        (applicationId === undefined || (p.applicationId || 0) === applicationId));
+      const prog: UserProgress = existing || {
+        userEmail: userSession.email.toLowerCase(), courseId: course.id,
+        applicationId: applicationId || 0, progressPercent: 0, completedLessons: [],
+        quizAttempts: 0, practicalStatus: 'none', overdue: false
+      };
+      prog.lastViewedAt = new Date().toISOString();
+      await dbService.saveUserProgress(prog);
+      await loadPlatformData();
+      setStudyingCourse(course);
+      setStudyingAssignmentId(prog.applicationId || 0);
+      setActiveLessonIdx(-1);
+      setQuizAnswers({});
+      setQuizTextAnswers({});
+      setQuizSubmitted(false);
+      setPracticalText('');
+    } catch (err) {
+      console.error('Unable to start course:', err);
+      showToast('Unable to save course progress. Please try again.');
+    }
   };
 
   const handleMarkLessonComplete = async (lessonId: string) => {
     if (!studyingCourse) return;
     const progressList = await dbService.getUserProgress(userSession.email);
     const prog = progressList.find(p => p.courseId === studyingCourse.id && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
+    if (!prog) throw new Error('Unable to find course progress. Please reopen the course.');
     if (prog) {
       if (!prog.completedLessons.includes(lessonId)) {
         prog.completedLessons.push(lessonId);
@@ -415,30 +417,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleMarkCourseComplete = async (courseId?: string) => {
-    const targetId = courseId || studyingCourse?.id;
-    if (!targetId) return;
-    const progressList = await dbService.getUserProgress(userSession.email);
-    const prog = progressList.find(p => p.courseId === targetId && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
-    if (prog) {
-      const c = studyingCourse || courses.find(item => item.id === targetId);
-      const hasCourseActivity = prog.progressPercent > 0 ||
-        prog.completedLessons.length > 0 ||
-        prog.quizAttempts > 0 ||
-        prog.quizScore !== undefined ||
-        prog.practicalStatus !== 'none';
+    try {
+      const targetId = courseId || studyingCourse?.id;
+      if (!targetId) return;
+      const progressList = await dbService.getUserProgress(userSession.email);
+      const prog = progressList.find(p => p.courseId === targetId && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
+      if (!prog) throw new Error('Unable to find course progress. Please reopen the course.');
+      if (prog) {
+        const c = studyingCourse || courses.find(item => item.id === targetId);
+        const hasCourseActivity = prog.progressPercent > 0 ||
+          prog.completedLessons.length > 0 ||
+          prog.quizAttempts > 0 ||
+          prog.quizScore !== undefined ||
+          prog.practicalStatus !== 'none';
 
-      if (c?.contentType !== 'document' && !hasCourseActivity) {
-        showToast('Start the course before marking it as done.');
-        return;
-      }
+        if (c?.contentType !== 'document' && !hasCourseActivity) {
+          throw new Error('Start the course before marking it as done.');
+        }
 
-      prog.progressPercent = 100;
-      if (c) {
-        prog.learningHours = calculateCourseLearningHours(c, 100);
+        prog.progressPercent = 100;
+        if (c) {
+          prog.learningHours = calculateCourseLearningHours(c, 100);
+        }
+        await dbService.saveUserProgress(prog);
+        await loadPlatformData();
+        setCompletedCourseModal({ title: c?.title || 'Course' });
       }
-      await dbService.saveUserProgress(prog);
-      await loadPlatformData();
-      setCompletedCourseModal({ title: c?.title || 'Course' });
+    } catch (err) {
+      showToast('Unable to complete course. Please check your progress and try again.');
+      throw err;
     }
   };
 
@@ -474,39 +481,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const threshold = settings.quizPassingThreshold;
     const passed = score >= threshold;
 
-    setQuizScore(score);
-    setQuizPassed(passed);
-    setQuizSubmitted(true);
+    try {
 
-    // Save progress
-    const progressList = await dbService.getUserProgress(userSession.email);
-    const prog = progressList.find(p => p.courseId === studyingCourse.id && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
-    if (prog) {
-      prog.quizAttempts += 1;
-      prog.quizScore = Math.max(prog.quizScore || 0, score);
+      // Save progress
+      const progressList = await dbService.getUserProgress(userSession.email);
+      const prog = progressList.find(p => p.courseId === studyingCourse.id && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
+      if (!prog) throw new Error('Missing course progress');
+      if (prog) {
+        prog.quizAttempts += 1;
+        prog.quizScore = Math.max(prog.quizScore || 0, score);
 
-      // Re-calculate overall course progress percentage
-      const totalLessons = studyingCourse.lessons.length;
-      const completedCount = prog.completedLessons.length;
-      let calculatedProgress = Math.round((completedCount / totalLessons) * 70);
+        // Re-calculate overall course progress percentage
+        const totalLessons = studyingCourse.lessons.length;
+        const completedCount = prog.completedLessons.length;
+        let calculatedProgress = Math.round((completedCount / totalLessons) * 70);
 
-      if (prog.quizScore >= threshold) {
-        calculatedProgress += 30;
-        // If there's no practical assessment required (default c2 compliance has none, c1 underwriting has one)
-        if (studyingCourse.id === 'c2') {
-          prog.progressPercent = 100;
+        if (prog.quizScore >= threshold) {
+          calculatedProgress += 30;
+          // If there's no practical assessment required (default c2 compliance has none, c1 underwriting has one)
+          if (studyingCourse.id === 'c2') {
+            prog.progressPercent = 100;
+          } else {
+            prog.progressPercent = Math.min(calculatedProgress, 90); // Practical gets them to 100
+          }
         } else {
-          prog.progressPercent = Math.min(calculatedProgress, 90); // Practical gets them to 100
+          prog.progressPercent = Math.min(calculatedProgress, 70);
         }
-      } else {
-        prog.progressPercent = Math.min(calculatedProgress, 70);
+
+        prog.learningHours = calculateCourseLearningHours(studyingCourse, prog.progressPercent);
+
+        await dbService.saveUserProgress(prog);
+        await loadPlatformData();
+        setQuizScore(score);
+        setQuizPassed(passed);
+        setQuizSubmitted(true);
+        showToast(`Quiz completed: Scored ${score}% (${passed ? 'PASSED' : 'FAILED'})`);
       }
-
-      prog.learningHours = calculateCourseLearningHours(studyingCourse, prog.progressPercent);
-
-      await dbService.saveUserProgress(prog);
-      await loadPlatformData();
-      showToast(`Quiz completed: Scored ${score}% (${passed ? 'PASSED' : 'FAILED'})`);
+    } catch (err) {
+      console.error('Unable to save quiz:', err);
+      showToast('Unable to save quiz results. Please try again.');
     }
   };
 
@@ -544,6 +557,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // ==========================================
 
   const handleAssignCourse = async (courseId: string, email: string) => {
+    if (!can(userSession.role, 'assignCourses')) { showToast('You do not have permission to assign courses.'); return; }
     const empProg = teamProgress[email.toLowerCase()] || [];
     const isCurrentlyAssigned = empProg.some(p => p.courseId === courseId && p.dueDate);
     const u = users.find(user => user.email === email);
@@ -560,6 +574,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleReviewPractical = async (subId: string, status: 'approved' | 'rejected') => {
+    if (!can(userSession.role, 'approveAssessments')) { showToast('You do not have permission to review assessments.'); return; }
     await dbService.reviewPractical(subId, status);
     const sub = practicals.find(p => p.id === subId);
     showToast(`Practical assessment by ${sub?.userName} has been ${status.toUpperCase()}`);
@@ -577,6 +592,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!can(userSession.role, 'editCourses') || (editingCourseId && !canManageCourse(userSession.role, userSession.id, courses.find(c => c.id === editingCourseId)?.createdBy))) {
+      showToast('You do not have permission to edit this course.');
+      return;
+    }
     if (!courseForm.title || !courseForm.code) {
       alert('Course Title and Course Code are required.');
       return;
@@ -605,25 +624,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       });
 
-    const saved = await dbService.saveCourse({
-      id: editingCourseId || `c-${Date.now()}`,
-      title: courseForm.title,
-      category: courseForm.category,
-      rating: editingCourseId ? (courses.find(c => c.id === editingCourseId)?.rating || 4.5) : 4.5,
-      code: courseForm.code,
-      level: courseForm.level,
-      description: courseForm.description,
-      imgBg: courseForm.imgBg,
-      imageUrl: courseForm.imageUrl,
-      trainer: courseForm.trainer || userSession.name || '',
-      lessons: lessonsWithIds,
-      quiz: isDocument ? [] : courseQuiz,
-      attachments: courseForm.attachments,
-      contentType: courseForm.contentType,
-      requiresCertification: courseForm.requiresCertification,
-      documentContent: courseForm.documentContent,
-      acknowledgmentText: courseForm.acknowledgmentText
-    });
+    let saved: Course;
+    try {
+      saved = await dbService.saveCourse({
+        id: editingCourseId || `c-${Date.now()}`,
+        createdBy: editingCourseId ? courses.find(c => c.id === editingCourseId)?.createdBy ?? null : userSession.id,
+        title: courseForm.title,
+        category: courseForm.category,
+        rating: editingCourseId ? (courses.find(c => c.id === editingCourseId)?.rating || 4.5) : 4.5,
+        code: courseForm.code,
+        level: courseForm.level,
+        description: courseForm.description,
+        imgBg: courseForm.imgBg,
+        imageUrl: courseForm.imageUrl,
+        trainer: courseForm.trainer || userSession.name || '',
+        lessons: lessonsWithIds,
+        quiz: isDocument ? [] : courseQuiz,
+        attachments: courseForm.attachments,
+        contentType: courseForm.contentType,
+        requiresCertification: courseForm.requiresCertification,
+        documentContent: courseForm.documentContent,
+        acknowledgmentText: courseForm.acknowledgmentText
+      });
+
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to save the course.'); return; }
 
     // Process assignments
     const employees = users.filter(u => Boolean(u.email));
@@ -639,7 +663,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         } else if (shouldBeAssigned && isCurrentlyAssigned && prog && prog.dueDate !== assignmentDueDate) {
           prog.dueDate = assignmentDueDate;
           prog.overdue = false;
-          await dbService.saveUserProgress(prog);
+          await dbService.saveManagedUserProgress(prog);
         } else if (!shouldBeAssigned && isCurrentlyAssigned) {
           await dbService.unassignCourseFromUser(saved.id, emp.email);
         }
@@ -673,6 +697,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleStartEditCourse = (course: Course) => {
+    if (!canManageCourse(userSession.role, userSession.id, course.createdBy)) { showToast('You do not have permission to edit this course.'); return; }
     setEditingCourseId(course.id);
     setCourseForm({
       title: course.title,
@@ -728,6 +753,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleDeleteCourse = async (id: string) => {
+    if (!canManageCourse(userSession.role, userSession.id, courses.find(c => c.id === id)?.createdBy)) { showToast('You do not have permission to delete this course.'); return; }
     await dbService.deleteCourse(id);
     showToast('Course successfully deleted.');
     await loadPlatformData();
@@ -748,27 +774,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // ==========================================
 
   const handleUpdateUserRole = async (email: string, role: UserRole) => {
+    if (!can(userSession.role, 'manageUsers')) { showToast('Administrator access is required.'); return; }
     const user = users.find(u => u.email === email);
     if (user) {
-      user.role = role;
-      await dbService.saveUser(user);
-      showToast(`Updated role of ${user.name} to ${roleDisplayNames[role]}`);
-      loadPlatformData();
+      try {
+        await dbService.changeUserRole(user.id, role);
+        showToast(`Updated role of ${user.name} to ${roleDisplayNames[role]}`);
+        await loadPlatformData();
+      } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to update the role.'); }
     }
   };
 
   const handleUpdateUserDept = async (email: string, dept: string) => {
+    if (!can(userSession.role, 'manageUsers')) { showToast('Administrator access is required.'); return; }
     const user = users.find(u => u.email === email);
     if (user) {
-      user.department = dept;
-      await dbService.saveUser(user);
-      showToast(`Updated department of ${user.name} to ${dept}`);
-      loadPlatformData();
+      try {
+        await dbService.saveUser({ ...user, department: dept });
+        showToast(`Updated department of ${user.name} to ${dept}`);
+        await loadPlatformData();
+      } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to update the department.'); }
     }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!can(userSession.role, 'manageUsers')) { showToast('Administrator access is required.'); return; }
+    if (userSession.id && !userSession.id.startsWith('u-')) { showToast('Ask the user to sign up first. Account invitations are not implemented yet.'); return; }
     if (!adminUserForm.name || !adminUserForm.email) return;
 
     await dbService.saveUser({
@@ -786,15 +818,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleDeleteUser = async (email: string) => {
+    if (!can(userSession.role, 'manageUsers')) { showToast('Administrator access is required.'); return; }
     if (confirm(`Are you sure you want to permanently delete user ${email}?`)) {
-      await dbService.deleteUser(email);
-      showToast(`User ${email} deleted.`);
-      loadPlatformData();
+      try {
+        await dbService.deleteUser(email);
+        showToast(`Profile for ${email} removed. Authentication account removal requires Supabase administration.`);
+        await loadPlatformData();
+      } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to remove the profile.'); }
     }
   };
 
   const handleAddDept = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!can(userSession.role, 'manageUsers')) { showToast('Administrator access is required.'); return; }
     if (!newDeptName.trim()) return;
     dbService.addDepartment(newDeptName.trim());
     showToast(`Department "${newDeptName.trim()}" added successfully.`);
@@ -802,25 +838,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     loadPlatformData();
   };
 
-  const handlePermissionToggle = (role: UserRole, permissionKey: keyof RolePermissions['permissions']) => {
-    const updated = permissions.map(p => {
-      if (p.role === role) {
-        return {
-          ...p,
-          permissions: {
-            ...p.permissions,
-            [permissionKey]: !p.permissions[permissionKey]
-          }
-        };
-      }
-      return p;
-    });
-    setPermissions(updated);
-    dbService.savePermissions(updated);
-    showToast(`Permissions updated for role: ${roleDisplayNames[role]}`);
+  const handlePermissionToggle = (_role: UserRole, _permissionKey: keyof RolePermissions['permissions']) => {
+    showToast('Permissions are enforced by database policies and cannot be overridden in this browser.');
   };
 
   const handleSaveSettings = (updatedSettings: Partial<SystemSettings>) => {
+    if (!can(userSession.role, 'systemSettings')) { showToast('Administrator access is required.'); return; }
     const n = { ...settings, ...updatedSettings };
     setSettings(n);
     dbService.saveSettings(n);
@@ -947,6 +970,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           studyingCourse={studyingCourse}
           setStudyingCourse={setStudyingCourse}
           setActiveInnerTab={setActiveInnerTab}
+          activeInnerTab={activeInnerTab}
           userPerms={userPerms}
           handleSignOutClick={handleSignOutClick}
         />
@@ -1426,7 +1450,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
 
             {/* TAB 9: TEAM REPORTS (TEAM LEADER) */}
-            {activeTab === 'team_reports' && (
+            {activeTab === 'team_reports' && can(userSession.role, 'viewTeamReports') && (
               <div className="koruna-subview-wrapper">
                 <div style={{ marginBottom: '2rem' }}>
                   <h2 className="koruna-section-title" style={{ marginBottom: '0.5rem' }}>
@@ -1605,13 +1629,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
 
             {/* TAB 10: ADMIN & CONTENT SUITE */}
-            {activeTab === 'admin_suite' && (
+            {activeTab === 'admin_suite' && can(userSession.role, 'editCourses') && (
               <AdminSuite
                 userSession={userSession}
                 userPerms={userPerms}
                 activeInnerTab={activeInnerTab}
                 setActiveInnerTab={setActiveInnerTab}
-                courses={courses}
+                courses={courses.filter(course => canManageCourse(userSession.role, userSession.id, course.createdBy))}
                 users={users}
                 departments={departments}
                 permissions={permissions}

@@ -1,5 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type { UserRole } from './auth';
+import { persistProgress, learnerProgressFields } from './progressPersistence';
+import { USER_ROLES, isUserRole, rolePermissions } from './authorization';
 
 export interface Lesson {
   id: string;
@@ -27,6 +29,7 @@ export interface CourseAssignment {
 
 export interface Course {
   id: string;
+  createdBy?: string | null;
   title: string;
   category: string;
   rating: number;
@@ -213,60 +216,6 @@ const DEFAULT_SETTINGS: SystemSettings = {
   darkSidebar: true
 };
 
-const DEFAULT_PERMISSIONS: RolePermissions[] = [
-  {
-    role: 'employee',
-    permissions: {
-      viewDashboard: true,
-      studyCourses: true,
-      viewTeamReports: false,
-      assignCourses: false,
-      approveAssessments: false,
-      editCourses: false,
-      manageUsers: false,
-      systemSettings: false
-    }
-  },
-  {
-    role: 'team_leader',
-    permissions: {
-      viewDashboard: true,
-      studyCourses: true,
-      viewTeamReports: true,
-      assignCourses: true,
-      approveAssessments: true,
-      editCourses: false,
-      manageUsers: false,
-      systemSettings: false
-    }
-  },
-  {
-    role: 'trainer',
-    permissions: {
-      viewDashboard: true,
-      studyCourses: true,
-      viewTeamReports: true,
-      assignCourses: true,
-      approveAssessments: false,
-      editCourses: true,
-      manageUsers: false,
-      systemSettings: false
-    }
-  },
-  {
-    role: 'admin',
-    permissions: {
-      viewDashboard: true,
-      studyCourses: true,
-      viewTeamReports: true,
-      assignCourses: true,
-      approveAssessments: true,
-      editCourses: true,
-      manageUsers: true,
-      systemSettings: true
-    }
-  }
-];
 
 // ==========================================
 // STORE STORAGE HELPERS
@@ -451,6 +400,7 @@ const mapDBCourse = (db: any): Course => {
 
   return {
     id: db.id,
+    createdBy: db.created_by ?? null,
     title: db.title,
     category: db.category,
     rating: Number(db.rating || 4.5),
@@ -475,6 +425,7 @@ const mapDBCourse = (db: any): Course => {
 const mapCourseToDB = (c: Course) => {
   return {
     id: c.id,
+    ...(c.createdBy !== undefined ? { created_by: c.createdBy } : {}),
     title: c.title,
     category: c.category,
     rating: c.rating,
@@ -879,16 +830,10 @@ export const dbService = {
 
   // --- USER ROLES & PERMISSIONS ---
   getPermissions(): RolePermissions[] {
-    const perms = getStorageItem<RolePermissions[]>('koruna_permissions', DEFAULT_PERMISSIONS);
-    const trainerPerms = perms.find(p => p.role === 'trainer');
-    if (trainerPerms && !trainerPerms.permissions.assignCourses) {
-      trainerPerms.permissions.assignCourses = true;
-      setStorageItem('koruna_permissions', perms);
-    }
-    return perms;
+    return USER_ROLES.map(role => ({ role, permissions: rolePermissions(role) }));
   },
-  savePermissions(perms: RolePermissions[]): void {
-    setStorageItem('koruna_permissions', perms);
+  savePermissions(_perms: RolePermissions[]): void {
+    throw new Error('Permissions are defined by database policies and cannot be changed in local storage.');
   },
   getRolePermissions(): RolePermissions[] {
     return this.getPermissions();
@@ -915,27 +860,9 @@ export const dbService = {
   // --- USERS ---
   async getUsers(): Promise<DatabaseUser[]> {
     if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, user_id, full_name, email, role, department, created_at');
-        if (data && !error) {
-          return data.map((u: any) => ({
-            id: u.id,
-            userId: u.user_id,
-            name: u.full_name,
-            email: u.email,
-            role: u.role,
-            department: u.department,
-            createdAt: u.created_at
-          }));
-        }
-        if (error) {
-          console.warn('Supabase profiles query failed, falling back to local users:', error);
-        }
-      } catch (err) {
-        console.error('Failed to get profiles from Supabase:', err);
-      }
+      const { data, error } = await supabase.from('profiles').select('id, user_id, full_name, email, role, department, created_at');
+      if (error) throw new Error('Unable to load the authorized user directory.');
+      return (data || []).map(u => ({ id: u.id, userId: u.user_id, name: u.full_name, email: u.email, role: u.role, department: u.department, createdAt: u.created_at }));
     }
     return getStorageItem<DatabaseUser[]>('koruna_users', DEFAULT_USERS);
   },
@@ -947,30 +874,11 @@ export const dbService = {
     };
 
     if (isSupabaseConfigured()) {
-      try {
-        const profilePayload = {
-          user_id: newUser.userId,
-          full_name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          department: newUser.department,
-          created_at: newUser.createdAt
-        };
-
-        if (newUser.id && !newUser.id.startsWith('u')) {
-          await supabase
-            .from('profiles')
-            .update(profilePayload)
-            .eq('id', newUser.id);
-        } else {
-          await supabase
-            .from('profiles')
-            .update(profilePayload)
-            .eq('email', newUser.email);
-        }
-      } catch (err) {
-        console.error('Supabase save profile failed:', err);
-      }
+      const { data, error } = await supabase.from('profiles')
+        .update({ full_name: newUser.name, department: newUser.department })
+        .eq('id', newUser.id).select('id').single();
+      if (error || !data) throw new Error(error?.message || 'Profile update was not authorized.');
+      return newUser;
     }
 
     const users = getStorageItem<DatabaseUser[]>('koruna_users', DEFAULT_USERS);
@@ -987,15 +895,23 @@ export const dbService = {
   async deleteUser(email: string): Promise<void> {
     const users = await this.getUsers();
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (user && isSupabaseConfigured() && user.id && !user.id.startsWith('u')) {
-      try {
-        await supabase.from('profiles').delete().eq('id', user.id);
-      } catch (err) {
-        console.error('Supabase delete profile failed:', err);
-      }
+    if (isSupabaseConfigured()) {
+      if (!user) throw new Error('User profile not found.');
+      const { data, error } = await supabase.from('profiles').delete().eq('id', user.id).select('id').single();
+      if (error || !data) throw new Error(error?.message || 'Profile removal was not authorized.');
+      return;
     }
     const filtered = users.filter(u => u.email.toLowerCase() !== email.toLowerCase());
     setStorageItem('koruna_users', filtered);
+  },
+
+  async changeUserRole(userId: string, role: UserRole): Promise<void> {
+    if (!isUserRole(role)) throw new Error('Invalid user role.');
+    if (!isSupabaseConfigured()) throw new Error('Role changes require a configured Supabase backend.');
+    const { error } = await supabase.rpc('set_user_role', { p_user_id: userId, p_role: role });
+    if (error) throw new Error(error.message);
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user.id === userId) await supabase.auth.refreshSession();
   },
 
   // --- COURSES & DOCUMENTS ---
@@ -1062,21 +978,15 @@ export const dbService = {
     if (fetchedFromSupabase) {
       // Return strictly courses/documents fetched from Supabase table, with course_assignments mapped
       const courseMap = new Map<string, Course>();
-      [...dbCourses, ...dbDocs].forEach(c => {
-        if (assignmentsMap[c.id] && assignmentsMap[c.id].length > 0) {
-          const existing = c.assignedUsers || [];
-          const merged = [...existing];
-          assignmentsMap[c.id].forEach(a => {
-            if (!merged.some(m => m.userId === a.userId)) {
-              merged.push(a);
-            }
-          });
-          c.assignedUsers = merged;
-        }
+      // The canonical course row owns authorization, even for legacy document copies.
+      [...dbDocs, ...dbCourses].forEach(c => {
+        c.assignedUsers = assignmentsMap[c.id] || [];
         courseMap.set(c.id, c);
       });
       return filterStaticSeeds(Array.from(courseMap.values()));
     }
+
+    if (isSupabaseConfigured()) throw new Error('Unable to load authorized courses.');
 
     const rawLocalCourses = getStorageItem<Course[]>('koruna_courses', []);
     const localCourses = filterStaticSeeds(rawLocalCourses);
@@ -1096,78 +1006,19 @@ export const dbService = {
   },
 
   async saveCourse(course: Course): Promise<Course> {
-    const isDocument = course.contentType === 'document';
-    const targetStorageKey = isDocument ? 'koruna_documents' : 'koruna_courses';
-    const otherStorageKey = isDocument ? 'koruna_courses' : 'koruna_documents';
-
-    // 1. Always save to LocalStorage immediately
-    const targetList = getStorageItem<Course[]>(targetStorageKey, isDocument ? [] : DEFAULT_COURSES);
-    const idx = targetList.findIndex(c => c.id === course.id);
-    if (idx !== -1) {
-      targetList[idx] = course;
-    } else {
-      targetList.push(course);
-    }
-    setStorageItem(targetStorageKey, targetList);
-
-    // Clean up from other storage if moving types
-    const otherList = getStorageItem<Course[]>(otherStorageKey, isDocument ? DEFAULT_COURSES : []);
-    const filteredOther = otherList.filter(c => c.id !== course.id);
-    if (filteredOther.length !== otherList.length) {
-      setStorageItem(otherStorageKey, filteredOther);
-    }
-
-    // 2. ALWAYS sync to Supabase "courses" table so created courses are saved for easy access and fetching
     if (isSupabaseConfigured()) {
-      try {
-        const fullDbCourse = mapCourseToDB(course);
-        const { error: primaryErr } = await supabase.from('courses').upsert(fullDbCourse);
-
-        if (primaryErr) {
-          console.warn('Primary upsert to Supabase "courses" table returned error, trying fallback payload:', primaryErr);
-
-          const descWithMetadata = encodeCourseMetadataInDescription(course);
-          const fallbackCourse = {
-            id: course.id,
-            title: course.title,
-            category: course.category,
-            rating: course.rating || 4.5,
-            code: course.code,
-            level: course.level,
-            description: descWithMetadata,
-            img_bg: course.imgBg,
-            image_url: course.imageUrl || null,
-            lessons: JSON.stringify(course.lessons || []),
-            quiz: JSON.stringify(course.quiz || []),
-            assigned_users: JSON.stringify(course.assignedUsers || []),
-            attachments: JSON.stringify(course.attachments || []),
-            trainer: course.trainer || null,
-            requirements: JSON.stringify(course.requirements || [])
-          };
-
-          const { error: fbErr } = await supabase.from('courses').upsert(fallbackCourse);
-          if (fbErr) {
-            console.error('Fallback upsert to Supabase "courses" table failed:', fbErr);
-          } else {
-            console.log(`Successfully saved course "${course.title}" (${course.id}) to Supabase "courses" table via fallback payload.`);
-          }
-        } else {
-          console.log(`Successfully saved course "${course.title}" (${course.id}) to Supabase "courses" table.`);
-        }
-
-        // Dual-write to 'documents' table if it's a document and table exists
-        if (isDocument) {
-          try {
-            await supabase.from('documents').upsert(fullDbCourse);
-          } catch (_) {
-            // documents table is optional
-          }
-        }
-      } catch (err) {
-        console.error('Supabase saveCourse failed:', err);
+      let result = await supabase.from('courses').upsert(mapCourseToDB(course)).select('*').single();
+      if (result.error && ['PGRST204', '42703'].includes(result.error.code)) {
+        const { image_url: _image, content_type: _type, requires_certification: _cert, document_content: _doc, acknowledgment_text: _ack, ...legacy } = mapCourseToDB(course);
+        result = await supabase.from('courses').upsert({ ...legacy, description: encodeCourseMetadataInDescription(course) }).select('*').single();
       }
+      if (result.error || !result.data) throw new Error(result.error?.message || 'Course save was not confirmed.');
+      this.notifyCoursesChanged();
+      return mapDBCourse(result.data);
     }
-
+    const key = course.contentType === 'document' ? 'koruna_documents' : 'koruna_courses';
+    const items = getStorageItem<Course[]>(key, []);
+    setStorageItem(key, [...items.filter(item => item.id !== course.id), course]);
     this.notifyCoursesChanged();
     return course;
   },
@@ -1205,95 +1056,48 @@ export const dbService = {
 
   async getUserProgress(email: string): Promise<UserProgress[]> {
     if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('user_progress')
-          .select('*')
-          .eq('user_email', email.toLowerCase());
-
-        if (data && !error) {
-          const userProg = filterStaticSeeds(data.map(db => mapDBProgress(db)));
-          const courses = await this.getCourses();
-
-          for (const c of courses) {
-            if (!userProg.some(p => p.courseId === c.id)) {
-              const newProg: UserProgress = {
-                userEmail: email.toLowerCase(),
-                courseId: c.id,
-                progressPercent: 0,
-                completedLessons: [],
-                quizAttempts: 0,
-                practicalStatus: 'none',
-                overdue: false
-              };
-              await this.saveUserProgress(newProg);
-              userProg.push(newProg);
-            }
-          }
-
-          return filterStaticSeeds(userProg);
-        }
-      } catch (err) {
-        console.error('Failed to get user progress from Supabase:', err);
-      }
+      const { data, error } = await supabase.from('user_progress').select('*').eq('user_email', email.toLowerCase());
+      if (error) throw new Error('Unable to load authorized learning progress.');
+      return filterStaticSeeds((data || []).map(mapDBProgress));
     }
-
-    const list = this.getProgressList();
-    let userProg = list.filter(p => p.userEmail.toLowerCase() === email.toLowerCase());
-
-    const localCourses = filterStaticSeeds(getStorageItem<Course[]>('koruna_courses', []));
-    const localDocs = filterStaticSeeds(getStorageItem<Course[]>('koruna_documents', []));
-    const courses = [...localCourses, ...localDocs];
-    let updated = false;
-
-    courses.forEach(c => {
-      if (!userProg.some(p => p.courseId === c.id)) {
-        const newProg: UserProgress = {
-          userEmail: email,
-          courseId: c.id,
-          progressPercent: 0,
-          completedLessons: [],
-          quizAttempts: 0,
-          practicalStatus: 'none',
-          overdue: false
-        };
-        list.push(newProg);
-        userProg.push(newProg);
-        updated = true;
-      }
-    });
-
-    if (updated) {
-      setStorageItem('koruna_progress', filterStaticSeeds(list));
-    }
-    return filterStaticSeeds(userProg);
+    return this.getProgressList().filter(p => p.userEmail.toLowerCase() === email.toLowerCase());
   },
 
   async saveUserProgress(prog: UserProgress): Promise<void> {
+    await this.saveProgress(prog, false);
+  },
+
+  async saveManagedUserProgress(prog: UserProgress): Promise<void> {
+    await this.saveProgress(prog, true);
+  },
+
+  async saveProgress(prog: UserProgress, managed: boolean): Promise<void> {
     if (isSupabaseConfigured()) {
-      try {
-        const dbProg = mapProgressToDB(prog);
-        const { error } = await supabase
-          .from('user_progress')
-          .upsert(dbProg);
-        if (error) {
-          if (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('last_viewed_at')) {
-            const fallbackProg = { ...dbProg };
-            delete fallbackProg.last_viewed_at;
-            delete fallbackProg.learning_hours;
-            const retryRes = await supabase
-              .from('user_progress')
-              .upsert(fallbackProg);
-            if (retryRes.error) {
-              console.error('Failed to save user progress to Supabase (retry):', retryRes.error);
-            }
-          } else {
-            console.error('Failed to save user progress to Supabase:', error);
-          }
+      const row = mapProgressToDB(prog);
+      const { user_email, course_id, application_id, ...managedFields } = row;
+      const identity = { user_email, course_id, application_id };
+      const fields = managed ? managedFields : learnerProgressFields(row);
+      const write = async (operation: 'update' | 'insert') => {
+        const send = (values: Record<string, unknown>) => {
+          const request = operation === 'update'
+            ? supabase.from('user_progress').update(values).match(identity)
+            : supabase.from('user_progress').insert({ ...identity, ...values });
+          return request.select('course_id');
+        };
+        let { data, error } = await send(fields);
+        // Older installations may lack these optional tracking columns. Never
+        // retry authorization failures or remove protected fields to bypass RLS.
+        if ((error?.code === 'PGRST204' || error?.code === '42703') &&
+            /last_viewed_at|learning_hours/.test(error.message)) {
+          const fallback = { ...fields };
+          delete fallback.last_viewed_at;
+          delete fallback.learning_hours;
+          ({ data, error } = await send(fallback));
         }
-      } catch (err) {
-        console.error('Supabase saveUserProgress failed:', err);
-      }
+        return { count: data?.length || 0, error };
+      };
+      await persistProgress({ update: () => write('update'), insert: () => write('insert') });
+      return;
     }
 
     const list = this.getProgressList();
@@ -1313,32 +1117,11 @@ export const dbService = {
   // --- PRACTICAL SUBMISSIONS ---
   async getPracticalSubmissions(): Promise<PracticalSubmission[]> {
     if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('practical_submissions')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (data && !error) {
-          if (data.length === 0 && DEFAULT_PRACTICALS.length > 0) {
-            const practicalsToInsert = DEFAULT_PRACTICALS.map(p => mapPracticalToDB(p));
-            const { error: insErr } = await supabase.from('practical_submissions').insert(practicalsToInsert);
-            if (!insErr) {
-              return DEFAULT_PRACTICALS;
-            }
-          } else {
-            return filterStaticSeeds(data.map(db => mapDBPractical(db)));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to get practical submissions from Supabase:', err);
-      }
+      const { data, error } = await supabase.from('practical_submissions').select('*').order('created_at', { ascending: false });
+      if (error) throw new Error('Unable to load authorized practical submissions.');
+      return filterStaticSeeds((data || []).map(mapDBPractical));
     }
-    const rawSubs = getStorageItem<PracticalSubmission[]>('koruna_practicals', []);
-    const filtered = filterStaticSeeds(rawSubs);
-    if (filtered.length !== rawSubs.length) {
-      setStorageItem('koruna_practicals', filtered);
-    }
-    return filtered;
+    return filterStaticSeeds(getStorageItem<PracticalSubmission[]>('koruna_practicals', []));
   },
 
   async submitPractical(sub: Omit<PracticalSubmission, 'id' | 'status' | 'dateSubmitted'>): Promise<PracticalSubmission> {
@@ -1370,7 +1153,7 @@ export const dbService = {
     if (prog) {
       prog.practicalStatus = 'pending';
       prog.practicalNotes = sub.submissionText;
-      await this.saveUserProgress(prog);
+      await this.saveManagedUserProgress(prog);
     }
 
     return newSub;
@@ -1404,7 +1187,7 @@ export const dbService = {
         if (status === 'approved') {
           prog.progressPercent = 100;
         }
-        await this.saveUserProgress(prog);
+        await this.saveManagedUserProgress(prog);
       }
     }
   },
@@ -1533,19 +1316,21 @@ export const dbService = {
       assignedBy: assignedBy || existingProg?.assignedBy
     };
 
-    await this.saveUserProgress(newProg);
+    await this.saveManagedUserProgress(newProg);
 
     let courseTitle = 'New Course';
     const courses = await this.getCourses();
     const course = courses.find(c => c.id === courseId);
     if (course) {
       courseTitle = course.title;
-      const assigned = course.assignedUsers || [];
-      const userKey = String(user.id || user.userId);
-      const updatedAssigned = assigned.filter(a => a.userId !== userKey && a.userId !== String(user.userId));
-      updatedAssigned.push({ userId: userKey, applicationId: appId });
-      course.assignedUsers = updatedAssigned;
-      await this.saveCourse(course);
+      if (!isSupabaseConfigured()) {
+        const assigned = course.assignedUsers || [];
+        const userKey = String(user.id || user.userId);
+        const updatedAssigned = assigned.filter(a => a.userId !== userKey && a.userId !== String(user.userId));
+        updatedAssigned.push({ userId: userKey, applicationId: appId });
+        course.assignedUsers = updatedAssigned;
+        await this.saveCourse(course);
+      }
     }
 
     // Create Notification
@@ -1617,13 +1402,13 @@ export const dbService = {
         overdue: false,
         dueDate: undefined
       };
-      await this.saveUserProgress(newProg);
+      await this.saveManagedUserProgress(newProg);
     }
 
     if (user) {
       const courses = await this.getCourses();
       const course = courses.find(c => c.id === courseId);
-      if (course) {
+      if (course && !isSupabaseConfigured()) {
         const assigned = course.assignedUsers || [];
         const userKey = String(user.id || user.userId);
         const updatedAssigned = assigned.filter(a => a.userId !== userKey && a.userId !== String(user.userId));
@@ -1636,24 +1421,12 @@ export const dbService = {
   // --- NOTIFICATIONS ---
   async getNotifications(email: string): Promise<Notification[]> {
     if (isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_email', email.toLowerCase())
-          .order('created_at', { ascending: false });
-        if (data && !error) {
-          return data.map(db => mapDBNotification(db));
-        }
-        if (error) {
-          console.error('Supabase getNotifications failed:', error.message);
-        }
-      } catch (err) {
-        console.error('Failed to get notifications from Supabase:', err);
-      }
+      const { data, error } = await supabase.from('notifications').select('*')
+        .eq('user_email', email.toLowerCase()).order('created_at', { ascending: false });
+      if (error) throw new Error('Unable to load authorized notifications.');
+      return (data || []).map(mapDBNotification);
     }
-    const list = getStorageItem<Notification[]>('koruna_notifications', []);
-    return list
+    return getStorageItem<Notification[]>('koruna_notifications', [])
       .filter(n => n.userEmail.toLowerCase() === email.toLowerCase())
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },

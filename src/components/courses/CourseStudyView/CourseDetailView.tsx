@@ -322,7 +322,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button
                     disabled={!isAcknowledgedChecked}
-                    onClick={() => handleMarkCourseComplete && handleMarkCourseComplete(studyingCourse.id)}
+                    onClick={() => handleMarkCourseComplete && handleMarkCourseComplete(studyingCourse.id).catch(() => {})}
                     style={{
                       background: isAcknowledgedChecked ? '#16a34a' : '#cbd5e1',
                       color: '#ffffff',
@@ -428,7 +428,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 {progressPercent < 100 && hasCourseActivity ? (
                   <button
                     id="mark-course-done-btn"
-                    onClick={() => handleMarkCourseComplete && handleMarkCourseComplete(studyingCourse.id)}
+                    onClick={() => handleMarkCourseComplete && handleMarkCourseComplete(studyingCourse.id).catch(() => {})}
                     style={{
                       background: '#16a34a',
                       color: '#ffffff',

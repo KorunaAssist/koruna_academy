@@ -1,3 +1,7 @@
+-- Fresh-install base schema. Apply supabase/migrations/202610150001_authorization.sql
+-- immediately afterwards, before enabling application access. Never rerun this base
+-- script as an upgrade; use migrations for existing projects.
+
 -- ========================================================
 -- KORUNA ACADEMY - PHASE 1: 4 USER ROLES & PROFILES SCHEMA
 -- Roles: 'employee', 'team_leader', 'trainer', 'admin'
@@ -30,16 +34,12 @@ DROP POLICY IF EXISTS "Users insert own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users delete profile" ON public.profiles;
 
 -- Read Access: Authenticated users can view profiles
-CREATE POLICY "Profiles read access" ON public.profiles FOR SELECT USING (true);
 
 -- Update Access: Users can update their own profile, Admins can update any profile
-CREATE POLICY "Users update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Insert Access: Users can insert their own profile
-CREATE POLICY "Users insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Delete Access: Enable profiles delete
-CREATE POLICY "Users delete profile" ON public.profiles FOR DELETE USING (true);
 
 -- 4. Trigger to automatically create a Profile when a User signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -50,7 +50,7 @@ BEGIN
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'department', 'Software Engineering'),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'employee'),
+    'employee',
     NEW.email
   )
   ON CONFLICT (id) DO UPDATE SET
@@ -107,10 +107,6 @@ DROP POLICY IF EXISTS "Allow trainers and admins to insert courses" ON public.co
 DROP POLICY IF EXISTS "Allow trainers and admins to update courses" ON public.courses;
 DROP POLICY IF EXISTS "Allow trainers and admins to delete courses" ON public.courses;
 
-CREATE POLICY "Allow public read access to courses" ON public.courses FOR SELECT USING (true);
-CREATE POLICY "Allow trainers and admins to insert courses" ON public.courses FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow trainers and admins to update courses" ON public.courses FOR UPDATE USING (true);
-CREATE POLICY "Allow trainers and admins to delete courses" ON public.courses FOR DELETE USING (true);
 
 -- 6. Create User Progress Table
 CREATE TABLE IF NOT EXISTS public.user_progress (
@@ -147,10 +143,6 @@ DROP POLICY IF EXISTS "Allow insert to user progress" ON public.user_progress;
 DROP POLICY IF EXISTS "Allow update to user progress" ON public.user_progress;
 DROP POLICY IF EXISTS "Allow delete to user progress" ON public.user_progress;
 
-CREATE POLICY "Allow read access to user progress" ON public.user_progress FOR SELECT USING (true);
-CREATE POLICY "Allow insert to user progress" ON public.user_progress FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update to user progress" ON public.user_progress FOR UPDATE USING (true);
-CREATE POLICY "Allow delete to user progress" ON public.user_progress FOR DELETE USING (true);
 
 -- 7. Create Practical Submissions Table
 CREATE TABLE IF NOT EXISTS public.practical_submissions (
@@ -173,12 +165,9 @@ DROP POLICY IF EXISTS "Allow read access to practical submissions" ON public.pra
 DROP POLICY IF EXISTS "Allow insert to practical submissions" ON public.practical_submissions;
 DROP POLICY IF EXISTS "Allow update to practical submissions" ON public.practical_submissions;
 
-CREATE POLICY "Allow read access to practical submissions" ON public.practical_submissions FOR SELECT USING (true);
-CREATE POLICY "Allow insert to practical submissions" ON public.practical_submissions FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update to practical submissions" ON public.practical_submissions FOR UPDATE USING (true);
 
 -- Drop the legacy course_assignments table if it was previously created
-DROP TABLE IF EXISTS public.course_assignments CASCADE;
+-- Existing assignment records are preserved by the authorization migration.
 
 -- 8. Create Notifications Table
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -203,10 +192,6 @@ DROP POLICY IF EXISTS "Allow update to notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Allow delete to notifications" ON public.notifications;
 
 -- RLS Policies for notifications
-CREATE POLICY "Allow read access to notifications" ON public.notifications FOR SELECT USING (true);
-CREATE POLICY "Allow insert to notifications" ON public.notifications FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update to notifications" ON public.notifications FOR UPDATE USING (true);
-CREATE POLICY "Allow delete to notifications" ON public.notifications FOR DELETE USING (true);
 
 -- ========================================================
 -- KORUNA ACADEMY - STORAGE SETUP FOR COURSE DOCUMENTS
@@ -223,8 +208,6 @@ DROP POLICY IF EXISTS "Auth Upload" ON storage.objects;
 DROP POLICY IF EXISTS "Auth Delete" ON storage.objects;
 
 CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'course-documents');
-CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'course-documents');
-CREATE POLICY "Auth Delete" ON storage.objects FOR DELETE USING (bucket_id = 'course-documents');
 
 -- ========================================================
 -- KORUNA ACADEMY - PHASE 3: POSTS / KORUNA LIFE FEED
@@ -288,10 +271,6 @@ DROP POLICY IF EXISTS "Allow update to posts" ON public.posts;
 DROP POLICY IF EXISTS "Allow delete to posts" ON public.posts;
 
 -- RLS Policies for posts
-CREATE POLICY "Allow read access to posts" ON public.posts FOR SELECT USING (true);
-CREATE POLICY "Allow insert to posts" ON public.posts FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update to posts" ON public.posts FOR UPDATE USING (true);
-CREATE POLICY "Allow delete to posts" ON public.posts FOR DELETE USING (true);
 
 
 

@@ -1,8 +1,10 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { dbService } from './db';
 import type { User } from '@supabase/supabase-js';
+import { profileRole } from './authorization';
+import type { UserRole } from './authorization';
 
-export type UserRole = 'employee' | 'team_leader' | 'trainer' | 'admin';
+export type { UserRole } from './authorization';
 
 export interface UserSessionData {
   id?: string;
@@ -19,12 +21,6 @@ interface AuthResult {
   requiresEmailConfirmation?: boolean;
 }
 
-const USER_ROLES: UserRole[] = ['employee', 'team_leader', 'trainer', 'admin'];
-
-function isUserRole(value: unknown): value is UserRole {
-  return typeof value === 'string' && USER_ROLES.includes(value as UserRole);
-}
-
 async function getSessionDataFromSupabaseUser(user: User): Promise<UserSessionData> {
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -33,43 +29,32 @@ async function getSessionDataFromSupabaseUser(user: User): Promise<UserSessionDa
     .maybeSingle();
 
   if (error) {
-    console.warn('Failed to load user profile; falling back to auth metadata:', error);
+    throw new Error('Unable to verify account permissions. Please try signing in again.');
   }
 
   const metadata = user.user_metadata || {};
-  const profileRole = profile?.role;
-  const metadataRole = metadata.role;
-  const role = isUserRole(profileRole)
-    ? profileRole
-    : isUserRole(metadataRole)
-      ? metadataRole
-      : 'employee';
+  const role = profileRole(profile?.role);
 
   return {
     id: user.id,
     name: profile?.full_name || metadata.full_name || user.email?.split('@')[0] || 'User',
     role,
-    email: profile?.email || user.email || '',
+    email: user.email || '',
     department: profile?.department || metadata.department
   };
 }
 
-async function upsertUserProfile(
+async function updateUserProfile(
   userId: string,
-  email: string,
   fullName: string,
   department: string,
-  role: UserRole
 ): Promise<string | null> {
   const { error } = await supabase
     .from('profiles')
-    .upsert({
-      id: userId,
+    .update({
       full_name: fullName,
-      email,
-      role,
       department
-    }, { onConflict: 'id' });
+    }).eq('id', userId);
 
   return error?.message || null;
 }
@@ -153,24 +138,13 @@ export async function signUpUser(
   pass: string,
   fullName: string,
   department: string,
-  role: UserRole = 'employee',
 ): Promise<AuthResult> {
+  const role: UserRole = 'employee';
   if (!isSupabaseConfigured() && !import.meta.env.DEV) {
     return { success: false, error: 'Authentication is unavailable. Please contact your administrator.' };
   }
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedFullName = fullName.trim();
-
-  // Check if email already exists
-  try {
-    const users = await dbService.getUsers();
-    const emailExists = users.some(u => u.email.toLowerCase() === normalizedEmail);
-    if (emailExists) {
-      return { success: false, error: 'This email address is already registered.' };
-    }
-  } catch (err) {
-    console.error('Failed to query users directory for email duplicate check:', err);
-  }
 
   if (!isSupabaseConfigured()) {
     // Demo mode fallback
@@ -204,7 +178,6 @@ export async function signUpUser(
       data: {
         full_name: normalizedFullName,
         department: department,
-        role: role
       }
     }
   });
@@ -213,29 +186,14 @@ export async function signUpUser(
     return { success: false, error: error.message };
   }
 
-  // Save profile mapping details in local storage for consistency
-  if (data.user?.id) {
-    if (data.session) {
-      const profileError = await upsertUserProfile(data.user.id, normalizedEmail, normalizedFullName, department, role);
-      if (profileError) {
-        return {
-          success: false,
-          error: `Account was created, but the profile could not be saved: ${profileError}`
-        };
-      }
-    }
-
-    try {
-      await dbService.saveUser({
-        id: data.user.id,
-        name: normalizedFullName,
-        role: role,
-        email: normalizedEmail,
-        department: department,
-        createdAt: new Date().toISOString().split('T')[0]
-      });
-    } catch (err) {
-      console.error('Failed to save user map to local storage:', err);
+  // The signup trigger creates the employee profile; update only editable fields.
+  if (data.user?.id && data.session) {
+    const profileError = await updateUserProfile(data.user.id, normalizedFullName, department);
+    if (profileError) {
+      return {
+        success: false,
+        error: `Account was created, but the profile could not be saved: ${profileError}`
+      };
     }
   }
 
@@ -251,7 +209,7 @@ export async function signUpUser(
     data: {
       id: data.user?.id,
       name: normalizedFullName,
-      role: role,
+      role: 'employee',
       email: normalizedEmail,
       department
     }
@@ -300,7 +258,9 @@ export async function signInUser(
   }
 
   if (data.user) {
-    const userSession = await getSessionDataFromSupabaseUser(data.user);
+    let userSession: UserSessionData;
+    try { userSession = await getSessionDataFromSupabaseUser(data.user); }
+    catch { return { success: false, error: 'Unable to verify account permissions. Please try again.' }; }
     return {
       success: true,
       data: userSession
@@ -322,12 +282,12 @@ export async function signInUser(
  */
 export async function signInWithSSO(
   provider: 'google' | 'azure' = 'google',
-  metadata?: { role?: UserRole; department?: string; fullName?: string; email?: string }
+  metadata?: { department?: string; fullName?: string; email?: string }
 ): Promise<{ success: boolean; data?: UserSessionData; error?: string }> {
   if (!isSupabaseConfigured()) {
     if (!import.meta.env.DEV) return { success: false, error: 'Authentication is unavailable. Please contact your administrator.' };
     const name = metadata?.fullName || (provider === 'google' ? 'Google Learner' : 'Jordan Taylor (SSO)');
-    const role = metadata?.role || 'employee';
+    const role: UserRole = 'employee';
     const email = metadata?.email || (provider === 'google' ? 'google.user@koruna.com' : 'jordan.taylor@koruna.com');
     const department = metadata?.department || 'Software Engineering';
 
@@ -346,12 +306,7 @@ export async function signInWithSSO(
     provider: provider === 'google' ? 'google' : 'azure',
     options: {
       redirectTo: window.location.origin,
-      data: metadata ? {
-        full_name: metadata.fullName,
-        role: metadata.role,
-        department: metadata.department
-      } : undefined
-    } as any
+    }
   });
 
   if (error) {

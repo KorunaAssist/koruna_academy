@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, KeyRound, AlertCircle, Info, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import { signUpUser, signInWithSSO } from '../services/auth';
-import type { UserRole, UserSessionData } from '../services/auth';
+import type { UserSessionData } from '../services/auth';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { LoadingModal } from './LoadingModal';
 
@@ -32,7 +32,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSignupSuccess, onNavig
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const department = 'Software Engineering';
-  const [role, setRole] = useState<UserRole>('employee');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [sendUpdates, setSendUpdates] = useState(true);
@@ -61,7 +60,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSignupSuccess, onNavig
 
     setIsLoading(true);
     const startTime = Date.now();
-    const result = await signUpUser(email, password, fullName, department, role);
+    const result = await signUpUser(email, password, fullName, department);
     const elapsed = Date.now() - startTime;
     if (elapsed < 1500) {
       await new Promise((resolve) => setTimeout(resolve, 1500 - elapsed));
@@ -93,7 +92,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSignupSuccess, onNavig
     setInfoMsg(null);
     const startTime = Date.now();
     const result = await signInWithSSO(provider, {
-      role,
       department,
       fullName: fullName.trim() || undefined,
       email: email.trim() || undefined
@@ -190,22 +188,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSignupSuccess, onNavig
           </div>
         </div>
 
-        {/* User Role Selector */}
-        <div className="koruna-login-form-group">
-          <label className="koruna-login-label" htmlFor="role-select">User Role</label>
-          <select
-            id="role-select"
-            className="koruna-login-input"
-            value={role}
-            onChange={(e) => setRole(e.target.value as UserRole)}
-            style={{ height: '52px', padding: '0 1.25rem', fontSize: '0.95rem', cursor: 'pointer' }}
-            disabled={isLoading}
-          >
-            <option value="employee">Employee</option>
-            <option value="team_leader">Team Leader</option>
-            <option value="trainer">Trainer</option>
-          </select>
-        </div>
+        <p className="koruna-login-subtitle" style={{ fontSize: '0.85rem' }}>New accounts start as employees. An administrator grants trainer or team leader access.</p>
 
         <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--koruna-text-secondary)' }}>
           <input
@@ -243,7 +226,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSignupSuccess, onNavig
             {!isSupabaseConfigured() && (
               <div style={{ padding: '0.6rem 0.8rem', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: '6px', fontSize: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Info size={14} style={{ flexShrink: 0 }} />
-                <span>Supabase Demo Mode active. Role & department can be customized in the main form above.</span>
+                <span>Supabase Demo Mode active. New accounts start as employees.</span>
               </div>
             )}
 
