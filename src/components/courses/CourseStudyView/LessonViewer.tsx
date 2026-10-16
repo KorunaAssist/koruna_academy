@@ -30,12 +30,23 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
   const [selectedResource, setSelectedResource] = useState<ResourceFile | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState<boolean>(true);
   const [isProcessingNext, setIsProcessingNext] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const lesson = studyingCourse.lessons[activeLessonIdx];
   const currentProgress = userProgress.find(p => p.courseId === studyingCourse.id);
   const isCompleted = currentProgress?.completedLessons.includes(lesson.id) ?? false;
+
+  const recordLessonCompletion = React.useCallback(async () => {
+    try {
+      await handleMarkLessonComplete(lesson.id);
+      setSaveError('');
+    } catch (err) {
+      setSaveError('Unable to save lesson progress. Please try again.');
+      throw err;
+    }
+  }, [handleMarkLessonComplete, lesson.id]);
 
   const [watchedProgress, setWatchedProgress] = useState<number>(() => isCompleted ? 100 : 0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -77,14 +88,14 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
               const pct = Math.min(100, Math.max(0, Math.round((currentTime / duration) * 100)));
               setWatchedProgress(prev => Math.max(prev, pct));
               if (pct >= 95 && !isCompleted) {
-                handleMarkLessonComplete(lesson.id);
+                recordLessonCompletion().catch(() => {});
               }
             }
             if (playerState === 1) setIsPlaying(true);
             else if (playerState === 2 || playerState === 0) setIsPlaying(false);
             if (playerState === 0) {
               setWatchedProgress(100);
-              handleMarkLessonComplete(lesson.id);
+              recordLessonCompletion().catch(() => {});
             }
           } else if (data.event === 'onStateChange') {
             if (data.info === 1) setIsPlaying(true);
@@ -92,7 +103,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
             if (data.info === 0) {
               setIsPlaying(false);
               setWatchedProgress(100);
-              handleMarkLessonComplete(lesson.id);
+              recordLessonCompletion().catch(() => {});
             }
           }
         }
@@ -101,7 +112,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [lesson?.id, isCompleted, handleMarkLessonComplete]);
+  }, [lesson?.id, isCompleted, recordLessonCompletion]);
 
   const pinkThemeColor = '#a82c5d';
   const parsedVideo = parseVideoUrl(lesson.videoUrl);
@@ -115,20 +126,20 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
       setWatchedProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          if (!isCompleted) handleMarkLessonComplete(lesson.id);
+          if (!isCompleted) recordLessonCompletion().catch(() => {});
           return 100;
         }
         const step = (1 / totalSeconds) * 100;
         const next = Math.min(100, prev + step);
         if (next >= 95 && !isCompleted) {
-          handleMarkLessonComplete(lesson.id);
+          recordLessonCompletion().catch(() => {});
         }
         return parseFloat(next.toFixed(1));
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [parsedVideo, isPlaying, isCompleted, totalSeconds, lesson?.id, handleMarkLessonComplete]);
+  }, [parsedVideo, isPlaying, isCompleted, totalSeconds, lesson?.id, recordLessonCompletion]);
 
   // Interactive seeking / setting progress when clicking the progress bar
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -158,7 +169,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
     }
 
     if (percentage >= 95 && !isCompleted) {
-      handleMarkLessonComplete(lesson.id);
+      recordLessonCompletion().catch(() => {});
     }
   };
 
@@ -193,7 +204,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
     if (isLastLesson && !hasQuiz) {
       try {
         if (!isCompleted) {
-          await handleMarkLessonComplete(lesson.id);
+          await recordLessonCompletion();
         }
         if (handleMarkCourseComplete) {
           await handleMarkCourseComplete(studyingCourse.id);
@@ -212,7 +223,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
     } else {
       try {
         if (!isCompleted) {
-          await handleMarkLessonComplete(lesson.id);
+          await recordLessonCompletion();
         }
         setActiveLessonIdx(prev => prev + 1);
       } catch (err) {
@@ -237,6 +248,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
       gap: '1.75rem',
       width: '100%'
     }}>
+      {saveError && <p role="alert" className="text-red-600 p-4">{saveError}</p>}
       {/* Loading Modal Overlay while saving lesson progress */}
       {isProcessingNext && (
         <LoadingModal
@@ -325,14 +337,14 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
                     const pct = Math.min(100, Math.max(0, Math.round((v.currentTime / v.duration) * 100)));
                     setWatchedProgress(pct);
                     if (pct >= 95 && !isCompleted) {
-                      handleMarkLessonComplete(lesson.id);
+                      recordLessonCompletion().catch(() => {});
                     }
                   }
                 }}
                 onEnded={() => {
                   setWatchedProgress(100);
                   setIsPlaying(false);
-                  handleMarkLessonComplete(lesson.id);
+                  recordLessonCompletion().catch(() => {});
                 }}
               />
             )}
