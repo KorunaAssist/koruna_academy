@@ -67,6 +67,7 @@ export const UserDirectoryView: React.FC<UserDirectoryViewProps> = ({
                     onChange={(e) => handleUpdateUserRole(u.email, e.target.value as UserRole)}
                   >
                     <option value="employee">Employee</option>
+                    <option value="team_leader">Team Leader</option>
                     <option value="trainer">Trainer</option>
                     <option value="admin">Administrator</option>
                   </select>

@@ -21,6 +21,7 @@ import { UserDirectoryView } from './UserDirectoryView';
 import { PermissionsMatrixView } from './PermissionsMatrixView';
 import { PlatformSettingsView } from './PlatformSettingsView';
 import { CourseCard } from '../courses/CourseCard';
+import { canAccessAdminTab } from '../../services/authorization';
 interface AdminSuiteProps {
   userSession: UserSessionData;
   userPerms?: RolePermissions['permissions'];
@@ -315,13 +316,11 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
   const categories = ['All', ...Array.from(new Set(coursesOnly.map(c => c.category)))];
   const docCategories = ['All', ...Array.from(new Set(documentsOnly.map(c => c.category)))];
   const totalHours = dbService.getProgressList().reduce((sum, p) => sum + (p.learningHours || 0), 0);
-  const trainerAllowedTabs = React.useMemo(() => new Set(['creator', 'inventory', 'certificate_templates', 'assignments']), []);
-
   React.useEffect(() => {
-    if (userSession.role === 'trainer' && !trainerAllowedTabs.has(activeInnerTab)) {
-      setActiveInnerTab('creator');
+    if (!canAccessAdminTab(userSession.role, activeInnerTab)) {
+      setActiveInnerTab(userSession.role === 'trainer' ? 'creator' : 'overview');
     }
-  }, [activeInnerTab, setActiveInnerTab, trainerAllowedTabs, userSession.role]);
+  }, [activeInnerTab, setActiveInnerTab, userSession.role]);
 
   const resetCourseFormState = () => {
     const defaultDueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -395,6 +394,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       </button>
     );
   }
+
+  if (!canAccessAdminTab(userSession.role, activeInnerTab)) return <p role="alert">You do not have access to this administration screen.</p>;
 
   return (
     <div className="as-root">

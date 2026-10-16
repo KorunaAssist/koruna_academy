@@ -7,20 +7,21 @@ interface PermissionsMatrixViewProps {
   handlePermissionToggle: (role: UserRole, capability: keyof RolePermissions['permissions']) => void | Promise<void>;
 }
 
-const roleLabel: Record<string, string> = { employee: 'Employee', trainer: 'Trainer', admin: 'Administrator' };
+const roleLabel: Record<string, string> = { employee: 'Employee', team_leader: 'Team Leader', trainer: 'Trainer', admin: 'Administrator' };
 
 export const PermissionsMatrixView: React.FC<PermissionsMatrixViewProps> = ({
   permissions,
-  handlePermissionToggle,
 }) => {
   return (
     <div className="as-card">
+      <p className="as-card-body">Role permissions are enforced by the database. This table shows the current access rules.</p>
       <div className="as-table-wrap">
         <table className="as-table" style={{ minWidth: 520 }}>
           <thead>
             <tr>
               <th>Capability</th>
               <th className="as-center">Employee</th>
+              <th className="as-center">Team Leader</th>
               <th className="as-center">Trainer</th>
               <th className="as-center">Administrator</th>
             </tr>
@@ -34,14 +35,15 @@ export const PermissionsMatrixView: React.FC<PermissionsMatrixViewProps> = ({
             ].map(perm => (
               <tr key={perm.key}>
                 <td className="as-cell-name">{perm.label}</td>
-                {(['employee', 'trainer', 'admin'] as UserRole[]).map(role => (
+                {(['employee', 'team_leader', 'trainer', 'admin'] as UserRole[]).map(role => (
                   <td key={role} className="as-center">
                     <input
                       type="checkbox"
                       className="as-check"
                       aria-label={`${perm.label} for ${roleLabel[role]}`}
                       checked={!!permissions.find(p => p.role === role)?.permissions[perm.key as keyof RolePermissions['permissions']]}
-                      onChange={() => handlePermissionToggle(role, perm.key as any)}
+                      disabled
+                      readOnly
                     />
                   </td>
                 ))}

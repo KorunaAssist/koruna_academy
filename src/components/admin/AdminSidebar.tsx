@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { UserRole } from '../../services/auth';
 import type { Course } from '../../services/db';
+import { canAccessAdminTab } from '../../services/authorization';
 
 export interface AdminSidebarProps {
   activeTab: string;
@@ -57,7 +58,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   setIsMobileSidebarOpen,
   userRole,
 }) => {
-  const navItems = userRole === 'trainer' ? TRAINER_NAV_ITEMS : ADMIN_NAV_ITEMS;
+  const navItems = (userRole === 'trainer' ? TRAINER_NAV_ITEMS : ADMIN_NAV_ITEMS)
+    .filter(item => canAccessAdminTab(userRole, item.targetTab || item.id));
   const getSelectedItemId = React.useCallback((innerTab: string) => (
     navItems.find((item) => item.id === innerTab)?.id ||
     navItems.find((item) => item.targetTab === innerTab)?.id ||
