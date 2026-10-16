@@ -1,5 +1,9 @@
 # React + TypeScript + Vite
 
+For the authorization migration, role setup, and access checks, follow
+[Authorization rollout](docs/authorization-rollout.md). Run `npm test` for the
+authorization and PostgreSQL policy tests (Node 24 LTS).
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
