@@ -10,6 +10,7 @@ import {
   Shield,
   Settings,
   BarChart3,
+  Route,
 } from 'lucide-react';
 import type { UserRole } from '../../services/auth';
 import type { Course } from '../../services/db';
@@ -36,6 +37,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },
   { id: 'inventory', label: 'Course Inventory', icon: BookOpen },
+  { id: 'learning_paths', label: 'Learning Paths', icon: Route },
   { id: 'document_inventory', label: 'Document Inventory', icon: FileText },
   { id: 'certificate_templates', label: 'Certificate Templates', icon: Award },
   { id: 'assignments', label: 'Assignments', icon: UserCheck },
@@ -45,6 +47,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 ];
 
 const TRAINER_NAV_ITEMS: AdminNavItem[] = [
+  { id: 'learning_paths', label: 'Learning Paths', icon: Route },
   { id: 'create_courses', label: 'Create courses', icon: PlusCircle, targetTab: 'creator' },
   { id: 'create_certificates', label: 'Create certificates', icon: Award, targetTab: 'certificate_templates' },
   { id: 'view_reports', label: 'View reports', icon: BarChart3, targetTab: 'assignments' },
