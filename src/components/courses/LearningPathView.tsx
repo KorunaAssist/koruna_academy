@@ -1,189 +1,86 @@
-import React, { useMemo, useState } from 'react';
-import { Check, Clock, Lock, Play } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Lock, Play, Route } from 'lucide-react';
 import type { Course, UserProgress } from '../../services/db';
-
-export interface PathStep {
-  id: string;
-  title: string;
-  subtitle: string;
-  status: 'completed' | 'in_progress' | 'not_started';
-  courseId?: string;
-  detail: string;
-  modules: string[];
-}
+import type { UserSessionData } from '../../services/auth';
+import { learningPathService, type PathVersion } from '../../services/learningPaths';
+import { coursePercent, missingPrerequisites } from '../../services/learningPathRules';
+import { useLearningPaths } from './useLearningPaths';
+import './learningPaths.css';
 
 export interface LearningPathViewProps {
+  userSession: UserSessionData;
   courses?: Course[];
   userProgress?: UserProgress[];
   onStartStudy?: (course: Course) => void;
 }
-
-const pathSteps: PathStep[] = [
-  {
-    id: 'new-hire',
-    title: 'New Hire',
-    subtitle: 'Account setup & welcome',
-    status: 'completed',
-    detail: 'Your account, access, and first-day onboarding items are complete.',
-    modules: ['Platform login', 'Profile setup', 'Welcome checklist']
-  },
-  {
-    id: 'orientation',
-    title: 'Orientation',
-    subtitle: 'Company & culture onboarding',
-    status: 'completed',
-    detail: 'You have completed the company introduction and culture onboarding track.',
-    modules: ['Mission and values', 'Team norms', 'Communication standards']
-  },
-  {
-    id: 'mortgage-basics',
-    title: 'Mortgage Basics',
-    subtitle: 'Foundations of mortgage lending',
-    status: 'completed',
-    detail: 'You have finished the core terminology and lending foundations track.',
-    modules: ['Loan lifecycle', 'Borrower documents', 'Compliance basics']
-  },
-  {
-    id: 'mortgage-level-1',
-    title: 'Mortgage Level 1',
-    subtitle: 'Core loan processing skills',
-    status: 'completed',
-    detail: 'You have completed the processing workflow and production readiness modules.',
-    modules: ['File intake', 'Condition tracking', 'Processor handoffs']
-  },
-  {
-    id: 'mortgage-level-2',
-    title: 'Mortgage Level 2',
-    subtitle: 'Underwriting fundamentals',
-    status: 'in_progress',
-    detail: 'Continue building underwriting confidence through scenario review and risk checks.',
-    modules: ['Income review', 'Asset validation', 'Scenario practice']
-  },
-  {
-    id: 'senior-mortgage-va-loan-specialist',
-    title: 'Senior Mortgage: VA Loan Specialist',
-    subtitle: 'Unlocks after completing Mortgage Level 2',
-    status: 'not_started',
-    detail: 'This specialization unlocks after Mortgage Level 2 is complete.',
-    modules: ['VA eligibility', 'Residual income', 'Senior specialist assessment']
-  }
-];
-
-const statusLabels: Record<PathStep['status'], string> = {
-  completed: 'Completed',
-  in_progress: 'In Progress',
-  not_started: 'Not Started'
-};
-
-const findMatchingCourse = (step: PathStep, courses: Course[]) => {
-  const normalizedTitle = step.title.toLowerCase();
-  return courses.find((course) => (
-    course.id === step.courseId ||
-    course.title.toLowerCase().includes(normalizedTitle) ||
-    normalizedTitle.includes(course.title.toLowerCase())
-  ));
-};
-
-export const LearningPathView: React.FC<LearningPathViewProps> = ({
-  courses = [],
-  userProgress = [],
-  onStartStudy
-}) => {
-  const [selectedStepId, setSelectedStepId] = useState('mortgage-level-2');
-  const selectedStep = pathSteps.find((step) => step.id === selectedStepId) || pathSteps[0];
-  const selectedCourse = useMemo(
-    () => findMatchingCourse(selectedStep, courses),
-    [courses, selectedStep]
-  );
-  const completedCount = pathSteps.filter((step) => step.status === 'completed').length;
-  const progressPercent = Math.round((completedCount / pathSteps.length) * 100);
-  const selectedProgress = selectedCourse
-    ? userProgress.find((progress) => progress.courseId === selectedCourse.id)?.progressPercent
-    : undefined;
-
-  return (
-    <section className="koruna-learning-path-page" aria-labelledby="learning-path-title">
-      <header className="koruna-learning-path-hero">
-        <div>
-          <h1 id="learning-path-title">Learning Path</h1>
-          <p>Your roadmap from New Hire to Senior Mortgage VA Specialist.</p>
+export function LearningPathView({ userSession,courses = [],userProgress = [],onStartStudy }: LearningPathViewProps) {
+  const { data,loading,error,reload } = useLearningPaths(userSession.id);
+  const [selectedId,setSelectedId] = useState('');
+  const [busy,setBusy] = useState(false);
+  const [actionError,setActionError] = useState('');
+  const [query,setQuery] = useState('');
+  const myEnrolments = data.enrolments.filter(e => e.user_id === userSession.id);
+  const myVersions = myEnrolments.flatMap(e => data.versions.filter(v => v.id === e.version_id));
+  const published = data.versions.filter(v => v.status === 'published' && !data.versions.some(other =>
+    other.path_id === v.path_id && other.status === 'published' && other.version_number > v.version_number));
+  const discover = published.filter(v => !myEnrolments.some(e => e.path_id === v.path_id));
+  const selected = [...myVersions,...discover].find(v => v.id === selectedId) || myVersions[0] || discover[0];
+  const enrolment = myEnrolments.find(e => e.version_id === selected?.id);
+  const pathProgress = data.progress.find(p => p.enrolment_id === enrolment?.id);
+  const selectedCourses = data.courses.filter(c => c.version_id === selected?.id).sort((a,b) => a.position-b.position);
+  const courseTitle = (id: string) => courses.find(c => c.id === id)?.title || 'Unavailable course';
+  const nextCourse = selectedCourses.find(row => coursePercent(row.course_id,userProgress) < 100 &&
+    missingPrerequisites(row.course_id,data.prerequisites,userProgress).length === 0 && courses.some(c => c.id === row.course_id));
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true); setActionError('');
+    try { await action(); } catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Unable to complete the action.'); }
+    finally { setBusy(false); }
+  };
+  const matches = (v: PathVersion) => `${v.name} ${v.description}`.toLowerCase().includes(query.toLowerCase());
+  const card = (v: PathVersion) => {
+    const joined = myEnrolments.find(e => e.version_id === v.id);
+    const progress = data.progress.find(p => p.enrolment_id === joined?.id);
+    return <button className={`lp-roadmap-card ${selected?.id === v.id ? 'selected' : ''}`} key={v.id} onClick={() => setSelectedId(v.id)} aria-pressed={selected?.id === v.id}>
+      <div className="lp-toolbar"><Route size={23}/><span className="lp-badge">{joined ? (progress?.progress_percent === 100 ? 'Completed' : joined.source === 'assigned' ? 'Assigned' : 'In Progress') : 'Open to everyone'}</span></div>
+      <h3>{v.name}</h3><p>{v.description || 'Follow a guided sequence of courses.'}</p>
+      <small>{data.courses.filter(c => c.version_id === v.id).length} courses · Version {v.version_number}{v.status === 'archived' ? ' · Archived' : ''}</small>
+      {joined && <><progress max={100} value={progress?.progress_percent || 0}/><strong>{progress?.progress_percent || 0}% complete</strong></>}
+    </button>;
+  };
+  return <section className="lp-workspace lp-learner" aria-labelledby="lp-title">
+    <header className="lp-heading"><div><span className="lp-eyebrow">YOUR NEXT CHAPTER</span><h1 id="lp-title">Learning Paths</h1><p>Build your skills one course at a time. Explore any published roadmap and learn at your own pace.</p></div><Route size={42}/></header>
+    {loading && <p role="status">Loading learning paths…</p>}
+    {(error || actionError) && <div className="lp-alert" role="alert">{error || actionError}<button className="lp-button" disabled={busy} onClick={() => run(async () => { await reload(); })}>Retry</button></div>}
+    {!loading && !error && <>
+      <label className="lp-field lp-search">Find a roadmap<input type="search" placeholder="Search Parabroker, Web Dev…" value={query} onChange={e => setQuery(e.target.value)}/></label>
+      <h2>My Learning Paths</h2>
+      <div className="lp-card-grid">{myVersions.filter(matches).map(card)}{!myVersions.length && <p className="lp-empty">Join a roadmap or start one of its courses to track your progress here.</p>}</div>
+      <h2>Explore Roadmaps</h2><p className="lp-muted">Published roadmaps are available to everyone on the platform.</p>
+      <div className="lp-card-grid">{discover.filter(matches).map(card)}{!discover.length && <p className="lp-empty">{published.length ? 'You have joined all available roadmaps.' : 'No roadmaps have been published yet.'}</p>}</div>
+      {query && ![...myVersions,...discover].some(matches) && <p>No roadmaps match your search.</p>}
+      {selected && <section className="lp-panel lp-stack" aria-label={`${selected.name} course sequence`}>
+        <div className="lp-toolbar"><div><span className="lp-eyebrow">COURSE ROADMAP · VERSION {selected.version_number}</span><h2>{selected.name}</h2></div>
+          {enrolment ? <strong>{pathProgress?.progress_percent || 0}% complete</strong> : <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.enrol(selected.path_id); await reload(); })}>{busy ? 'Joining…' : 'Join Learning Path'}</button>}
         </div>
-        <div className="koruna-learning-path-hero-progress" aria-label={`${progressPercent}% complete`}>
-          <span>{progressPercent}%</span>
-          <div className="koruna-learning-path-hero-track">
-            <div style={{ width: `${progressPercent}%` }} />
-          </div>
-        </div>
-      </header>
-
-      <div className="koruna-learning-path-list" aria-label="Learning path steps">
-        {pathSteps.map((step) => (
-          <button
-            key={step.id}
-            type="button"
-            className={`koruna-learning-path-item ${step.status} ${selectedStep.id === step.id ? 'selected' : ''}`}
-            aria-pressed={selectedStep.id === step.id}
-            onClick={() => setSelectedStepId(step.id)}
-          >
-            <div className={`koruna-learning-path-icon ${step.status}`} aria-hidden="true">
-              {step.status === 'completed' && <Check size={22} strokeWidth={3} />}
-              {step.status === 'in_progress' && <Play size={16} fill="currentColor" strokeWidth={0} />}
-              {step.status === 'not_started' && <Lock size={15} />}
+        <p className="lp-muted">{selected.description}</p>
+        {enrolment?.due_at && <p>Due {new Date(enrolment.due_at).toLocaleDateString()}</p>}
+        {enrolment && <progress max={100} value={pathProgress?.progress_percent || 0}/>}
+        {nextCourse && <div><button className="lp-button primary" disabled={busy || !onStartStudy} onClick={() => onStartStudy?.(courses.find(c => c.id === nextCourse.course_id)!)}><Play size={16}/> {enrolment ? 'Continue Learning' : 'Start First Available Course'}</button></div>}
+        <ol className="lp-sequence">{selectedCourses.map(row => {
+          const course = courses.find(c => c.id === row.course_id);
+          const percent = coursePercent(row.course_id,userProgress);
+          const missing = missingPrerequisites(row.course_id,data.prerequisites,userProgress);
+          const status = percent >= 100 ? 'Completed' : missing.length ? 'Locked' : userProgress.some(p => p.courseId === row.course_id) ? 'In Progress' : 'Available';
+          return <li className={`lp-course-step ${status === 'Completed' ? 'complete' : ''}`} key={row.course_id}>
+            <span className="lp-step-number">{status === 'Completed' ? <Check size={19}/> : missing.length ? <Lock size={17}/> : row.position}</span>
+            <div className="lp-step-copy"><h3>{courseTitle(row.course_id)}</h3><p>{row.required ? 'Required' : 'Optional'} · {status}{percent > 0 ? ` · ${percent}%` : ''}</p>
+              {!!missing.length && <p className="lp-lock-reason">Complete first: {missing.map(courseTitle).join(', ')}</p>}
+              {!course && <p>This course is unavailable. Contact your trainer.</p>}
             </div>
-
-            <div className="koruna-learning-path-copy">
-              <h2>{step.title}</h2>
-              <p>{step.subtitle}</p>
-            </div>
-
-            <span className={`koruna-learning-path-status ${step.status}`}>
-              {statusLabels[step.status]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <aside className={`koruna-learning-path-detail ${selectedStep.status}`}>
-        <div className="koruna-learning-path-detail-heading">
-          <span className={`koruna-learning-path-detail-icon ${selectedStep.status}`} aria-hidden="true">
-            {selectedStep.status === 'completed' && <Check size={18} strokeWidth={3} />}
-            {selectedStep.status === 'in_progress' && <Clock size={18} />}
-            {selectedStep.status === 'not_started' && <Lock size={16} />}
-          </span>
-          <div>
-            <h2>{selectedStep.title}</h2>
-            <p>{selectedStep.detail}</p>
-          </div>
-        </div>
-
-        <div className="koruna-learning-path-modules">
-          {selectedStep.modules.map((module) => (
-            <span key={module}>{module}</span>
-          ))}
-        </div>
-
-        {selectedStep.status === 'in_progress' && (
-          <div className="koruna-learning-path-action-row">
-            <div>
-              <span className="koruna-learning-path-action-label">Current progress</span>
-              <strong>{selectedProgress ?? 50}%</strong>
-            </div>
-            <button
-              type="button"
-              className="koruna-learning-path-action"
-              disabled={!selectedCourse || !onStartStudy}
-              onClick={() => {
-                if (selectedCourse && onStartStudy) {
-                  onStartStudy(selectedCourse);
-                }
-              }}
-            >
-              <Play size={15} fill="currentColor" strokeWidth={0} />
-              Continue
-            </button>
-          </div>
-        )}
-      </aside>
-    </section>
-  );
-};
+            <button className="lp-button" disabled={busy || !course || !onStartStudy || missing.length > 0} onClick={() => course && onStartStudy?.(course)}>{status === 'Completed' ? 'Review' : missing.length ? 'Locked' : percent > 0 ? 'Continue' : 'Start Course'}</button>
+          </li>;
+        })}</ol>
+      </section>}
+    </>}
+  </section>;
+}
