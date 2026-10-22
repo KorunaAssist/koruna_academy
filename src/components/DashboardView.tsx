@@ -19,6 +19,8 @@ import { UnderDevelopment } from './UnderDevelopment';
 import { KorunaHomeView } from './koruna/KorunaHomeView';
 import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
 import { can, canManageCourse, safeTab } from '../services/authorization';
+import { learningPathService } from '../services/learningPaths';
+import { missingPrerequisites } from '../services/learningPathRules';
 
 interface DashboardViewProps {
   userSession: UserSessionData;
@@ -154,7 +156,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     documentContent: '',
     acknowledgmentText: 'I have read, understood, and agree to the policies and terms outlined in this document.'
   });
-  const [courseLessons, setCourseLessons] = useState<Omit<Lesson, 'id'>[]>([
+  const [courseLessons, setCourseLessons] = useState<(Omit<Lesson, 'id'> & { id?: string })[]>([
     { title: 'Lesson 1: Introduction', content: 'Enter lesson text here.' }
   ]);
   const [courseQuiz, setCourseQuiz] = useState<QuizQuestion[]>([]);
@@ -358,6 +360,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleStartStudy = async (course: Course, applicationId?: number) => {
     try {
       const progressList = await dbService.getUserProgress(userSession.email);
+      const prerequisites = await learningPathService.prerequisites();
+      const missing = missingPrerequisites(course.id,prerequisites,progressList);
+      if (missing.length) {
+        showToast(`Complete these courses first: ${missing.map(id => courses.find(c => c.id === id)?.title || id).join(', ')}.`);
+        return;
+      }
       const existing = progressList.find(p => p.courseId === course.id &&
         (applicationId === undefined || (p.applicationId || 0) === applicationId));
       const prog: UserProgress = existing || {
@@ -377,7 +385,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setPracticalText('');
     } catch (err) {
       console.error('Unable to start course:', err);
-      showToast('Unable to save course progress. Please try again.');
+      showToast(err instanceof Error ? err.message : 'Unable to save course progress. Please try again.');
     }
   };
 
@@ -608,17 +616,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const isDocument = courseForm.contentType === 'document';
     const lessonsWithIds: Lesson[] = isDocument
       ? [{
-        id: editingCourseId ? `${editingCourseId}-l1` : `c_new-l1`,
+        id: courses.find(c => c.id === editingCourseId)?.lessons[0]?.id || crypto.randomUUID(),
         title: courseForm.title,
         content: courseForm.documentContent || courseForm.description || 'Document Acknowledgment Content',
         moduleId: 'm1',
         moduleTitle: 'Document'
       }]
-      : courseLessons.map((l, i) => {
+      : courseLessons.map((l) => {
         const currentModule = courseModules.find(m => m.id === (l.moduleId || 'm1')) || courseModules[0] || { id: 'm1', title: 'Introduction' };
         return {
           ...l,
-          id: editingCourseId ? `${editingCourseId}-l${i + 1}` : `c_new-l${i + 1}`,
+          id: l.id || crypto.randomUUID(),
           moduleId: currentModule.id,
           moduleTitle: currentModule.title
         };
@@ -714,7 +722,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       documentContent: course.documentContent || '',
       acknowledgmentText: course.acknowledgmentText || 'I have read, understood, and agree to the policies and terms outlined in this document.'
     });
-    setCourseLessons(course.lessons.map(({ id, ...l }) => l));
+    setCourseLessons(course.lessons.map(l => ({ ...l })));
     setCourseQuiz(course.quiz || []);
 
     const existingModules: { id: string; title: string }[] = [];
@@ -1183,6 +1191,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* TAB 3: LEARNING PATH */}
             {activeTab === 'learning_path' && (
               <LearningPathView
+                userSession={userSession}
                 courses={courses}
                 userProgress={userProgress}
                 onStartStudy={handleStartStudy}
@@ -1636,6 +1645,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 activeInnerTab={activeInnerTab}
                 setActiveInnerTab={setActiveInnerTab}
                 courses={courses.filter(course => canManageCourse(userSession.role, userSession.id, course.createdBy))}
+                allCourses={courses}
                 users={users}
                 departments={departments}
                 permissions={permissions}

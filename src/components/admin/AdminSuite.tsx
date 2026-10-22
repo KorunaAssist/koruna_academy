@@ -22,10 +22,12 @@ import { PermissionsMatrixView } from './PermissionsMatrixView';
 import { PlatformSettingsView } from './PlatformSettingsView';
 import { CourseCard } from '../courses/CourseCard';
 import { canAccessAdminTab } from '../../services/authorization';
+import { LearningPathsManager } from './LearningPathsManager';
 interface AdminSuiteProps {
   userSession: UserSessionData;
   userPerms?: RolePermissions['permissions'];
   courses: Course[];
+  allCourses: Course[];
   users: DatabaseUser[];
   departments: Department[];
   permissions: RolePermissions[];
@@ -247,6 +249,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   document_inventory: { title: 'Documents', description: 'Policies, SOPs, and acknowledgment documents.' },
   certificate_templates: { title: 'Certificate template', description: 'Set the text shown on certificates and preview the result.' },
   assignments: { title: 'Assignments', description: 'Enroll employees in courses and documents.' },
+  learning_paths: { title: 'Learning Paths', description: 'Create, publish, and assign course roadmaps.' },
   users: { title: 'Users', description: 'Manage accounts, roles, and departments.' },
   permissions: { title: 'Permissions', description: 'Choose what each role is allowed to do.' },
   settings: { title: 'Settings', description: 'Platform-wide options and reminders.' }
@@ -256,6 +259,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
   userSession,
   userPerms: _userPerms,
   courses,
+  allCourses,
   users,
   departments,
   permissions,
@@ -445,6 +449,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       )}
 
       {/* COURSES INVENTORY */}
+      {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
+
       {activeInnerTab === 'inventory' && (
         <CourseInventoryView
           coursesOnly={coursesOnly}

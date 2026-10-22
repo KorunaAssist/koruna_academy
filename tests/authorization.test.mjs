@@ -19,6 +19,10 @@ test('trainer and team leader cannot access account or settings administration',
     assert.equal(canAccessAdminTab(role, 'permissions'), false);
   }
   assert.equal(canAccessAdminTab('trainer', 'creator'), true);
+  assert.equal(canAccessAdminTab('trainer', 'learning_paths'), true);
+  assert.equal(canAccessAdminTab('admin', 'learning_paths'), true);
+  assert.equal(canAccessAdminTab('employee', 'learning_paths'), false);
+  assert.equal(canAccessAdminTab('team_leader', 'learning_paths'), false);
   assert.equal(canAccessAdminTab('team_leader', 'creator'), false);
   assert.equal(canAccessTab('team_leader', 'team_reports'), true);
 });
