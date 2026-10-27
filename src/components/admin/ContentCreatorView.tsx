@@ -8,6 +8,7 @@ import type { Course, DatabaseUser, Lesson, QuizQuestion } from '../../services/
 import type { UserSessionData } from '../../services/auth';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { CourseCard, CourseBannerHeader } from '../courses/CourseCard';
+import { skillsService,type Skill } from '../../services/skills';
 
 export interface ContentCreatorViewProps {
   userSession?: UserSessionData;
@@ -32,6 +33,7 @@ export interface ContentCreatorViewProps {
     requiresCertification?: boolean;
     documentContent?: string;
     acknowledgmentText?: string;
+    skillIds?: string[];
   };
   setCourseForm: React.Dispatch<React.SetStateAction<any>>;
   courseLessons: Omit<Lesson, 'id'>[];
@@ -126,9 +128,29 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [showTips, setShowTips] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
+  const [skills,setSkills] = useState<Skill[]>([]);
+  const [skillsError,setSkillsError] = useState('');
+  const [skillsLoading,setSkillsLoading] = useState(true);
+  const [skillsRetry,setSkillsRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setSkillsLoading(true);
+    skillsService.catalogue().then(rows => { if (active) { setSkills(rows); setSkillsError(''); } })
+      .catch(reason => { if (active) setSkillsError(reason instanceof Error ? reason.message : 'Unable to load skills.'); })
+      .finally(() => { if (active) setSkillsLoading(false); });
+    return () => { active = false; };
+  },[userSession?.id,skillsRetry]);
 
   const isDocument = courseForm.contentType === 'document';
   const patch = (p: Record<string, any>) => setCourseForm((prev: any) => ({ ...prev, ...p }));
+  const selectedSkillIds = courseForm.skillIds || [];
+  const toggleCourseSkill = (id: string,checked: boolean) => {
+    patch({ skillIds: checked ? [...selectedSkillIds,id] : selectedSkillIds.filter(skillId => skillId !== id) });
+    setCourseLessons(previous => previous.map(lesson => {
+      const links: string[] = lesson.skillIds ?? selectedSkillIds;
+      return { ...lesson,skillIds: checked ? [...new Set([...links,id])] : links.filter(skillId => skillId !== id) };
+    }));
+  };
 
   useEffect(() => {
     if (!editingCourseId && !courseForm.trainer && userSession?.name) patch({ trainer: userSession.name });
@@ -466,6 +488,18 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
               </label>
             </section>
 
+            {!isDocument && <section className="cc-card">
+              <div className="cc-card-h"><span><Award size={14}/> Skills taught by this course</span></div>
+              <p className="cc-muted">Select one or more skills. All lessons contribute by default; adjust each lesson’s skills in the Lessons tab. Each linked lesson has equal weight across all courses teaching that skill.</p>
+              {skillsLoading && <p role="status">Loading skill catalogue…</p>}
+              {skillsError && <p role="alert">{skillsError} <button type="button" className="cc-btn sm" onClick={() => setSkillsRetry(n => n+1)}>Retry</button></p>}
+              <div className="skill-choice-grid">{skills.filter(s => !s.archived || selectedSkillIds.includes(s.id)).map(skill => <label className="skill-choice" key={skill.id}>
+                <input type="checkbox" checked={selectedSkillIds.includes(skill.id)} onChange={e => toggleCourseSkill(skill.id,e.target.checked)}/>
+                <span>{skill.name}{skill.archived ? ' (archived)' : ''}</span>
+              </label>)}</div>
+              {!skillsLoading && !skillsError && skills.every(s => s.archived) && <p className="cc-muted">An admin needs to create skills in Admin Suite → Skills Catalogue first.</p>}
+            </section>}
+
             <section className="cc-card">
               <div className="cc-card-h between">
                 <span><Paperclip size={14} /> Attachments</span>
@@ -666,6 +700,16 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                                     <textarea className="cc-in" rows={4} value={lesson.content} placeholder="Reading material for this lesson..."
                                       onChange={(e) => updateLesson(gi, 'content', e.target.value)} />
                                   </label>
+                                  {!!selectedSkillIds.length && <div className="cc-f span2">
+                                    <span>Skills this lesson contributes to</span>
+                                    <div className="skill-choice-grid">{skills.filter(s => selectedSkillIds.includes(s.id)).map(skill => <label className="skill-choice" key={skill.id}>
+                                      <input type="checkbox" checked={(lesson.skillIds ?? selectedSkillIds).includes(skill.id)} onChange={e => {
+                                        const links = lesson.skillIds ?? selectedSkillIds;
+                                        updateLesson(gi,'skillIds',e.target.checked ? [...links,skill.id] : links.filter(id => id !== skill.id));
+                                      }}/><span>{skill.name}</span>
+                                    </label>)}</div>
+                                    <small>Checked lessons are required training for the selected skills. Leave all unchecked if this lesson teaches none of them.</small>
+                                  </div>}
                                 </div>
                               </div>
                             )}
