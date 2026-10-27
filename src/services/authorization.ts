@@ -3,7 +3,7 @@ export type UserRole = typeof USER_ROLES[number];
 export type Capability = 'viewDashboard' | 'studyCourses' | 'viewTeamReports' | 'assignCourses' | 'approveAssessments' | 'editCourses' | 'manageUsers' | 'systemSettings';
 
 const LEARNING_TABS = new Set(['dashboard', 'home', 'learn', 'catalog', 'catalog_courses', 'knowledge_base', 'feed', 'rewards', 'engage', 'career', 'career_path', 'my_koruna', 'learning_path', 'progress', 'certificates', 'skills', 'notifications', 'settings', 'profile']);
-const ADMIN_TABS = new Set(['overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'users', 'permissions', 'settings']);
+const ADMIN_TABS = new Set(['overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'skill_catalogue', 'users', 'permissions', 'settings']);
 const TRAINER_TABS = new Set(['creator', 'inventory', 'certificate_templates', 'assignments', 'learning_paths']);
 
 export function isUserRole(value: unknown): value is UserRole {
