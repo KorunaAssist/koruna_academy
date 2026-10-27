@@ -23,6 +23,7 @@ import { PlatformSettingsView } from './PlatformSettingsView';
 import { CourseCard } from '../courses/CourseCard';
 import { canAccessAdminTab } from '../../services/authorization';
 import { LearningPathsManager } from './LearningPathsManager';
+import { SkillsManager } from './SkillsManager';
 interface AdminSuiteProps {
   userSession: UserSessionData;
   userPerms?: RolePermissions['permissions'];
@@ -250,6 +251,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   certificate_templates: { title: 'Certificate template', description: 'Set the text shown on certificates and preview the result.' },
   assignments: { title: 'Assignments', description: 'Enroll employees in courses and documents.' },
   learning_paths: { title: 'Learning Paths', description: 'Create, publish, and assign course roadmaps.' },
+  skill_catalogue: { title: 'Skills Catalogue', description: 'Define the skills that employees develop through courses and lessons.' },
   users: { title: 'Users', description: 'Manage accounts, roles, and departments.' },
   permissions: { title: 'Permissions', description: 'Choose what each role is allowed to do.' },
   settings: { title: 'Settings', description: 'Platform-wide options and reminders.' }
@@ -450,6 +452,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
 
       {/* COURSES INVENTORY */}
       {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
+      {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
 
       {activeInnerTab === 'inventory' && (
         <CourseInventoryView

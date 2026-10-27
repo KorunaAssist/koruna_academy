@@ -11,6 +11,7 @@ import {
   Settings,
   BarChart3,
   Route,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { UserRole } from '../../services/auth';
 import type { Course } from '../../services/db';
@@ -38,6 +39,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },
   { id: 'inventory', label: 'Course Inventory', icon: BookOpen },
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
+  { id: 'skill_catalogue', label: 'Skills Catalogue', icon: SlidersHorizontal },
   { id: 'document_inventory', label: 'Document Inventory', icon: FileText },
   { id: 'certificate_templates', label: 'Certificate Templates', icon: Award },
   { id: 'assignments', label: 'Assignments', icon: UserCheck },
