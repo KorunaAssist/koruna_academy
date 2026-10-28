@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Award,
-  Search, LogOut,
+  LogOut,
   CheckCircle, Menu,
-  Download, FileText
+  Download,
+  Folder,
+  Grid2X2,
+  List
 } from 'lucide-react';
 import type { UserSessionData, UserRole } from '../services/auth';
 import { dbService, calculateCourseLearningHours, type Course, type Lesson, type QuizQuestion, type UserProgress, type Badge, type PracticalSubmission, type Department, type SystemSettings, type RolePermissions, type DatabaseUser, type Notification } from '../services/db';
@@ -18,6 +21,7 @@ import { Header, HeaderActions } from './Header';
 import { UnderDevelopment } from './UnderDevelopment';
 import { KorunaHomeView } from './koruna/KorunaHomeView';
 import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
+import { KnowledgeHubView } from './koruna/KnowledgeHubView';
 import { can, canManageCourse, safeTab } from '../services/authorization';
 import { learningPathService } from '../services/learningPaths';
 import { missingPrerequisites } from '../services/learningPathRules';
@@ -40,7 +44,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [courses, setCourses] = useState<Course[]>([]);
   const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
   const [teamProgress, setTeamProgress] = useState<Record<string, UserProgress[]>>({});
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const [, setBadges] = useState<Badge[]>([]);
   const [practicals, setPracticals] = useState<PracticalSubmission[]>([]);
   const [users, setUsers] = useState<DatabaseUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -50,7 +54,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // --- UI INTERACTION STATE ---
   const [_showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [kbQuery, setKbQuery] = useState('');
+  const [catalogueView, setCatalogueView] = useState<'grid' | 'list'>('grid');
+  const [selectedCatalogueLob, setSelectedCatalogueLob] = useState('All');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -339,19 +344,118 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
   const userInitials = getUserInitials(userSession.name);
 
+  const getCourseLob = (course: Course) => {
+    const category = course.category.toLowerCase();
+    if (category.includes('mortgage') || category.includes('loan processing')) return 'MB';
+    if (category.includes('lending') || category.includes('financial product')) return 'FP';
+    if (category.includes('onboarding') || category.includes('operation') || category.includes('ai') || category.includes('compliance') || category.includes('leadership') || category.includes('policy')) return 'General';
+    return 'Other';
+  };
+
+  const catalogueLobs = ['All', ...Array.from(new Set(courses.map(getCourseLob))).sort((a, b) => {
+    const order = ['MB', 'FP', 'General', 'Other'];
+    return order.indexOf(a) - order.indexOf(b);
+  })];
+
   // Filter catalog courses
   const filteredCourses = courses.filter(c =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ).filter(c => selectedCatalogueLob === 'All' || getCourseLob(c) === selectedCatalogueLob);
 
-  // Calculate Overall Progress percentage
-  const totalCoursesEnrolled = userProgress.length;
-  const completedCoursesCount = userProgress.filter(p => p.progressPercent === 100).length;
-  const overallProgressPercent = totalCoursesEnrolled > 0
-    ? Math.round((userProgress.reduce((sum, curr) => sum + curr.progressPercent, 0)) / totalCoursesEnrolled)
+  const activeUserEmail = userSession.email.toLowerCase();
+  const currentUserProgress = userProgress.filter((progress) => (
+    !progress.userEmail || progress.userEmail.toLowerCase().trim() === activeUserEmail
+  ));
+  const assignedCourseCount = currentUserProgress.length;
+  const completedProgress = currentUserProgress.filter((progress) => progress.progressPercent >= 100);
+  const completedCourseCount = completedProgress.length;
+  const overallProgressPercent = assignedCourseCount > 0
+    ? Math.round(currentUserProgress.reduce((sum, progress) => sum + progress.progressPercent, 0) / assignedCourseCount)
     : 0;
+  const currentYear = new Date().getFullYear();
+  const certificateCount = completedProgress.filter((progress) => {
+    const course = courses.find((item) => item.id === progress.courseId);
+    if (course?.requiresCertification === false) return false;
+    const issuedDateValue = progress.lastViewedAt || progress.dueDate;
+    if (!issuedDateValue) return true;
+    const issuedDate = new Date(issuedDateValue);
+    return Number.isNaN(issuedDate.getTime()) || issuedDate.getFullYear() === currentYear;
+  }).length;
+  const learningHours = currentUserProgress.reduce((sum, progress) => {
+    if (typeof progress.learningHours === 'number') return sum + progress.learningHours;
+    const course = courses.find((item) => item.id === progress.courseId);
+    if (!course || progress.progressPercent <= 0) return sum;
+    const courseHours = course.lessons?.length ? Math.max(course.lessons.length * 0.5, 0.5) : 1;
+    return sum + Number(((progress.progressPercent / 100) * courseHours).toFixed(1));
+  }, 0);
+  const learningHoursTarget = 80;
+  const assignedCompletionPercent = assignedCourseCount > 0
+    ? Math.round((completedCourseCount / assignedCourseCount) * 100)
+    : 0;
+
+  const getProgressCourse = (progress: UserProgress) => courses.find((course) => course.id === progress.courseId);
+  const averageProgressScore = (matcher: (course: Course) => boolean) => {
+    const matchedProgress = currentUserProgress.filter((progress) => {
+      const course = getProgressCourse(progress);
+      return course ? matcher(course) : false;
+    });
+    if (matchedProgress.length === 0) return 0;
+    return Math.round(matchedProgress.reduce((sum, progress) => sum + progress.progressPercent, 0) / matchedProgress.length);
+  };
+  const textMatches = (course: Course, terms: string[]) => {
+    const haystack = `${course.title} ${course.category} ${course.code} ${course.description}`.toLowerCase();
+    return terms.some((term) => haystack.includes(term));
+  };
+  const skillScores = [
+    {
+      label: 'Mortgage Processing',
+      percent: averageProgressScore((course) => textMatches(course, ['mortgage', 'loan', 'lending']))
+    },
+    {
+      label: 'Client Communication',
+      percent: averageProgressScore((course) => textMatches(course, ['client', 'communication', 'service', 'leadership']))
+    },
+    {
+      label: 'Regulatory Compliance',
+      percent: averageProgressScore((course) => textMatches(course, ['regulatory', 'compliance', 'policy', 'document']))
+    },
+    {
+      label: 'AI',
+      percent: averageProgressScore((course) => textMatches(course, ['ai', 'automation', 'technology', 'tech']))
+    }
+  ].map((skill) => ({
+    ...skill,
+    value: Math.round(skill.percent / 10)
+  }));
+
+  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+  const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+  const currentMonthStart = monthStart(new Date());
+  const monthlyActivity = Array.from({ length: 6 }, (_, index) => {
+    const monthDate = new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth() - (5 - index), 1);
+    const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
+    const activity = currentUserProgress.reduce((sum, progress) => {
+      const activityDateValue = progress.lastViewedAt || progress.dueDate;
+      if (!activityDateValue) return sum;
+      const activityDate = new Date(activityDateValue);
+      if (Number.isNaN(activityDate.getTime())) return sum;
+      const progressMonthKey = `${activityDate.getFullYear()}-${activityDate.getMonth()}`;
+      if (progressMonthKey !== monthKey) return sum;
+      return sum + Math.max(progress.completedLessons.length, progress.progressPercent > 0 ? 1 : 0);
+    }, 0);
+    return {
+      month: monthFormatter.format(monthDate),
+      activity,
+      active: monthKey === `${currentMonthStart.getFullYear()}-${currentMonthStart.getMonth()}`
+    };
+  });
+  const maxMonthlyActivity = Math.max(...monthlyActivity.map((item) => item.activity), 1);
+  const monthlyActivityBars = monthlyActivity.map((item) => ({
+    ...item,
+    height: item.activity > 0 ? Math.max(18, Math.round((item.activity / maxMonthlyActivity) * 92)) : 8
+  }));
 
   // ==========================================
   // EMPLOYEE CAPABILITIES & EVENTS
@@ -645,7 +749,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         description: courseForm.description,
         imgBg: courseForm.imgBg,
         imageUrl: courseForm.imageUrl,
-        trainer: courseForm.trainer || userSession.name || '',
+        // The display trainer is set from the authenticated creator for new
+        // courses.  A form value must not accidentally carry over another
+        // user's name (for example, "Admin Francis").
+        trainer: editingCourseId
+          ? courses.find(c => c.id === editingCourseId)?.trainer || userSession.name || ''
+          : userSession.name || '',
         lessons: lessonsWithIds,
         quiz: isDocument ? [] : courseQuiz,
         attachments: courseForm.attachments,
@@ -1092,6 +1201,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <KorunaAcademyDashboard
                 userSession={userSession}
                 courses={courses}
+                users={users}
                 userProgress={userProgress}
                 onStartStudy={handleStartStudy}
                 onTabChange={handleTabChange}
@@ -1160,12 +1270,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                  <div role="tablist" aria-label="Filter courses by line of business" style={{ display: 'flex', alignItems: 'flex-end', gap: '0.7rem', flexWrap: 'wrap', paddingTop: '7px' }}>
+                    {catalogueLobs.map((lob) => {
+                      const selected = selectedCatalogueLob === lob;
+                      const count = lob === 'All' ? courses.length : courses.filter((course) => getCourseLob(course) === lob).length;
+                      return (
+                        <button
+                          key={lob}
+                          type="button"
+                          role="tab"
+                          aria-selected={selected}
+                          onClick={() => setSelectedCatalogueLob(lob)}
+                          style={{
+                            position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minWidth: '98px', padding: '0.68rem 0.9rem', borderRadius: '4px 10px 10px 10px',
+                            border: selected ? '1px solid #b12b67' : '1px solid #cbd5e1', background: selected ? '#fce7f3' : '#f8fafc',
+                            color: selected ? '#8f174c' : '#475569', fontWeight: 750, fontSize: '0.82rem', cursor: 'pointer', boxShadow: selected ? '0 5px 12px rgba(163, 21, 85, 0.16)' : '0 1px 2px rgba(15, 23, 42, 0.05)',
+                            transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                          }}
+                        >
+                          <span aria-hidden="true" style={{ position: 'absolute', left: '-1px', top: '-7px', width: '38px', height: '9px', borderRadius: '7px 7px 0 0', border: selected ? '1px solid #b12b67' : '1px solid #cbd5e1', borderBottom: 0, background: selected ? '#fce7f3' : '#f8fafc' }} />
+                          <Folder size={16} fill={selected ? '#f9a8d4' : '#e2e8f0'} strokeWidth={2.25} />
+                          <span>{lob}</span> <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div aria-label="Catalogue display style" style={{ display: 'inline-flex', padding: '3px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff' }}>
+                    <button type="button" aria-label="Grid view" aria-pressed={catalogueView === 'grid'} onClick={() => setCatalogueView('grid')} style={{ width: '34px', height: '32px', border: 0, borderRadius: '5px', display: 'grid', placeItems: 'center', cursor: 'pointer', background: catalogueView === 'grid' ? '#fdf2f8' : 'transparent', color: catalogueView === 'grid' ? '#a31555' : '#64748b' }}><Grid2X2 size={17} /></button>
+                    <button type="button" aria-label="List view" aria-pressed={catalogueView === 'list'} onClick={() => setCatalogueView('list')} style={{ width: '34px', height: '32px', border: 0, borderRadius: '5px', display: 'grid', placeItems: 'center', cursor: 'pointer', background: catalogueView === 'list' ? '#fdf2f8' : 'transparent', color: catalogueView === 'list' ? '#a31555' : '#64748b' }}><List size={18} /></button>
+                  </div>
+                </div>
+
+                <div style={{ display: catalogueView === 'grid' ? 'grid' : 'flex', flexDirection: catalogueView === 'grid' ? undefined : 'column', gridTemplateColumns: catalogueView === 'grid' ? 'repeat(auto-fill, minmax(280px, 1fr))' : undefined, gap: catalogueView === 'grid' ? '1.5rem' : '0.75rem' }}>
                   {filteredCourses.length > 0 ? (
                     filteredCourses.map((c) => {
                       const prog = userProgress.find(p => p.courseId === c.id);
                       const isEnrolled = !!prog;
                       const isAssigned = !!prog?.dueDate;
+                      if (catalogueView === 'list') {
+                        const progress = prog?.progressPercent ?? 0;
+                        return (
+                          <article key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff', flexWrap: 'wrap' }}>
+                            <div style={{ width: '38px', height: '38px', borderRadius: '9px', display: 'grid', placeItems: 'center', background: '#fdf2f8', color: '#a31555', fontSize: '0.76rem', fontWeight: 800 }}>{getCourseLob(c)}</div>
+                            <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                              <h3 style={{ margin: 0, color: '#1e293b', fontSize: '0.98rem' }}>{c.title}</h3>
+                              <div style={{ marginTop: '0.28rem', color: '#64748b', fontSize: '0.8rem' }}>{c.code} · {c.category} · {c.level}</div>
+                            </div>
+                            <div style={{ flex: '0 1 150px', minWidth: '130px' }} aria-label={`${progress}% complete`}>
+                              <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}><div style={{ height: '100%', width: `${progress}%`, background: progress === 100 ? '#16a34a' : '#a31555' }} /></div>
+                              <div style={{ marginTop: '0.3rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>{progress}% complete</div>
+                            </div>
+                            <button type="button" className={progress > 0 && progress < 100 ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} style={{ minWidth: '100px' }} onClick={() => handleStartStudy(c)}>{progress === 100 ? 'Review' : progress > 0 ? 'Continue' : 'Start'}</button>
+                          </article>
+                        );
+                      }
                       return (
                         <CourseCard
                           key={c.id}
@@ -1199,78 +1358,76 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
             {/* TAB 4: MY PROGRESS DETAIL */}
             {activeTab === 'progress' && (
-              <div className="koruna-subview-wrapper">
-                <h2 className="koruna-section-title" style={{ marginBottom: '1.5rem' }}>My Progress & Learning Statistics</h2>
+              <div className="koruna-progress-page">
+                <section className="koruna-progress-hero" aria-labelledby="progress-title">
+                  <h2 id="progress-title">My Progress</h2>
+                  <p>A full breakdown of your learning activity and growth.</p>
+                </section>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                  <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', background: '#fdf2f8', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--koruna-primary)' }}>AVERAGE ENROLLMENT PROGRESS</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--koruna-primary)', margin: '0.5rem 0' }}>{overallProgressPercent}%</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>Weighted compliance score</div>
-                  </div>
+                <section className="koruna-progress-stats" aria-label="Progress summary">
+                  <article className="koruna-progress-stat-card koruna-progress-stat-card-featured">
+                    <span>Overall %</span>
+                    <strong>{overallProgressPercent}%</strong>
+                    <div className="koruna-progress-mini-track" aria-hidden="true">
+                      <div style={{ width: `${overallProgressPercent}%` }} />
+                    </div>
+                    <p>Across all assigned courses</p>
+                  </article>
 
-                  <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', background: '#f0fdf4', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a' }}>COMPLETED COURSES</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#16a34a', margin: '0.5rem 0' }}>{completedCoursesCount}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>Out of {totalCoursesEnrolled} active courses</div>
-                  </div>
+                  <article className="koruna-progress-stat-card">
+                    <span>Completed Courses</span>
+                    <strong>{completedCourseCount} / {assignedCourseCount}</strong>
+                    <p>{assignedCompletionPercent}% of assigned courses</p>
+                  </article>
 
-                  <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', background: '#f0f9ff', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0284c7' }}>XP POINTS EARNED</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0284c7', margin: '0.5rem 0' }}>{completedCoursesCount * 500 + userProgress.reduce((sum, curr) => sum + curr.completedLessons.length * 50, 0)}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>Top percentile range rank</div>
-                  </div>
-                </div>
+                  <article className="koruna-progress-stat-card">
+                    <span>Certificates</span>
+                    <strong>{certificateCount}</strong>
+                    <p>Earned this year</p>
+                  </article>
 
-                {/* EARNED BADGES SUBSECTION */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--koruna-text-dark)' }}>Earned Badges</h3>
-                  <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.85rem' }}>Complete quizzes with 100% and fulfill training checklists to unlock special performance badges.</p>
+                  <article className="koruna-progress-stat-card">
+                    <span>Learning Hours</span>
+                    <strong>{learningHours.toFixed(1)}h</strong>
+                    <p>Of {learningHoursTarget}h yearly target</p>
+                  </article>
+                </section>
 
-                  <div className="koruna-badge-showcase-grid">
-                    {dbService.getBadges().map((b) => {
-                      const earned = badges.find(badge => badge.id === b.id);
-                      return (
-                        <div key={b.id} className={`koruna-badge-item-card ${!earned ? 'locked' : ''}`} style={{ borderTop: earned ? `4px solid ${b.color}` : '1px solid var(--koruna-border-color)' }}>
-                          <div className="koruna-badge-item-icon">{b.icon}</div>
-                          <div className="koruna-badge-item-name">{b.name}</div>
-                          <div className="koruna-badge-item-desc">{b.description}</div>
-                          {earned && (
-                            <div style={{ fontSize: '0.65rem', background: '#e0f2fe', color: '#0369a1', padding: '0.15rem 0.4rem', borderRadius: '4px', marginTop: '0.5rem', fontWeight: 700 }}>
-                              UNLOCKED: {earned.dateEarned}
-                            </div>
-                          )}
+                <section className="koruna-progress-insights">
+                  <div className="koruna-skills-panel">
+                    <h3>Skills Progress</h3>
+                    {skillScores.map((skill) => (
+                      <div className="koruna-skill-row" key={skill.label}>
+                        <div className="koruna-skill-label-row">
+                          <span>{skill.label}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', backgroundColor: '#ffffff' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1rem' }}>Active Learning Timeline</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {userProgress.flatMap(p => p.completedLessons.map(lId => {
-                      const course = courses.find(c => c.id === p.courseId);
-                      const lesson = course?.lessons.find(l => l.id === lId);
-                      return {
-                        date: 'Completed Lesson',
-                        text: `Finished learning lecture topic "${lesson?.title}" in course ${course?.code}`,
-                        category: course?.category
-                      };
-                    })).slice(0, 3).map((act, i) => (
-                      <div key={i} style={{ display: 'flex', gap: '1rem', borderLeft: '2px solid var(--koruna-border-color)', paddingLeft: '1.5rem', position: 'relative' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--koruna-primary)', position: 'absolute', left: '-5px', top: '5px' }}></div>
-                        <div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>{act.date} • Category: {act.category}</div>
-                          <div style={{ fontSize: '0.875rem', color: 'var(--koruna-text-dark)', fontWeight: 550, marginTop: '0.15rem' }}>{act.text}</div>
+                        <div className="koruna-skill-meter-row">
+                          <div className="koruna-skill-track">
+                            <div style={{ width: `${skill.percent}%` }} />
+                          </div>
+                          <span>{skill.value}/10</span>
                         </div>
                       </div>
                     ))}
-                    {completedCoursesCount === 0 && userProgress.reduce((sum, curr) => sum + curr.completedLessons.length, 0) === 0 && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--koruna-text-muted)' }}>No recent learning activity logged.</p>
-                    )}
                   </div>
-                </div>
+
+                  <div className="koruna-activity-panel">
+                    <h3>Monthly Activity</h3>
+                    <div className="koruna-monthly-chart" aria-label="Monthly activity chart">
+                      {monthlyActivityBars.map((item) => (
+                        <div className="koruna-month-bar-group" key={item.month}>
+                          <div
+                            className={`koruna-month-bar ${item.active ? 'active' : ''}`}
+                            style={{ height: `${item.height}%` }}
+                            title={`${item.activity} learning ${item.activity === 1 ? 'activity' : 'activities'}`}
+                            aria-hidden="true"
+                          />
+                          <span>{item.month}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
               </div>
             )}
 
@@ -1413,49 +1570,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 8: KNOWLEDGE BASE */}
             {activeTab === 'knowledge_base' && (
-              <div className="koruna-subview-wrapper">
-                <div style={{ marginBottom: '2rem' }}>
-                  <h2 className="koruna-section-title" style={{ marginBottom: '0.5rem' }}>
-                    Koruna Central Knowledge Base
-                  </h2>
-                  <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.95rem' }}>
-                    Search guidelines, internal memos, audit documents, and operational standard procedures.
-                  </p>
-                </div>
-
-                <div style={{ position: 'relative', maxWidth: '600px', marginBottom: '2rem' }}>
-                  <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--koruna-text-muted)' }} size={18} />
-                  <input
-                    type="text"
-                    placeholder="Search SOP document name or category..."
-                    className="koruna-header-search-input"
-                    style={{ width: '100%', paddingLeft: '3rem', border: '1px solid var(--koruna-border-color)', height: '46px' }}
-                    value={kbQuery}
-                    onChange={(e) => setKbQuery(e.target.value)}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                  {[
-                    { title: 'Mortgage Processing SOP v4.2', type: 'SOP Document', updated: '2 days ago', cat: 'Operations' },
-                    { title: 'Koruna Employee Code of Conduct & Ethics', type: 'Company Policy', updated: 'Last month', cat: 'Compliance' },
-                    { title: 'Client Onboarding & KYC Inspection Checklist', type: 'Form Template', updated: '1 week ago', cat: 'Mortgage' },
-                    { title: 'Information Security & Data Backup Guidelines', type: 'IT Policy', updated: '3 weeks ago', cat: 'IT Security' }
-                  ].filter(doc => doc.title.toLowerCase().includes(kbQuery.toLowerCase()) || doc.cat.toLowerCase().includes(kbQuery.toLowerCase()))
-                    .map((doc, i) => (
-                      <div key={i} style={{ border: '1px solid var(--koruna-border-color)', padding: '1.25rem', background: '#ffffff', borderRadius: '12px', boxShadow: 'var(--koruna-card-shadow)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--koruna-primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-                          <FileText size={16} /> {doc.type}
-                        </div>
-                        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '0.5rem' }}>{doc.title}</h4>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>
-                          <span>Category: {doc.cat}</span>
-                          <span>{doc.updated}</span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
+              <KnowledgeHubView />
             )}
 
             {/* TAB 9: TEAM REPORTS (TEAM LEADER) */}

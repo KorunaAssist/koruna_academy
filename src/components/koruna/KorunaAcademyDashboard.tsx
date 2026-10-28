@@ -8,12 +8,13 @@ import {
   Flame
 } from 'lucide-react';
 import type { UserSessionData } from '../../services/auth';
-import type { Course, UserProgress } from '../../services/db';
+import type { Course, DatabaseUser, UserProgress } from '../../services/db';
 import { CourseBannerHeader } from '../courses/CourseCard';
 
 export interface KorunaAcademyDashboardProps {
   userSession: UserSessionData;
   courses: Course[];
+  users: DatabaseUser[];
   userProgress: UserProgress[];
   onStartStudy: (course: Course, applicationId?: number) => void;
   onTabChange: (tab: string) => void;
@@ -24,6 +25,7 @@ export interface KorunaAcademyDashboardProps {
 export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   userSession,
   courses,
+  users,
   userProgress,
   onStartStudy,
   onTabChange,
@@ -58,88 +60,36 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     };
   };
 
-  // Find the single recent course that the user viewed, ONLY if it is UNDONE (progressPercent < 100)
+  // Continue Learning must show a course the signed-in learner actually opened.
+  // Do not fall back to assigned or catalogue courses: those have not necessarily
+  // been started by this learner.
   const currentUserEmail = (userSession?.email || '').toLowerCase();
 
-  // 1. Get assigned courses for the logged-in user
-  const userAssignedCourses = courses.filter((c) => {
-    const prog = userProgress.find(
-      (p) => p.courseId === c.id && (
-        !p.userEmail || (currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail)
-      )
-    );
-    const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
-    const hasAssignedCourseFlag = !!c.isAssigned || (
-      !!c.assignedUsers && c.assignedUsers.some((a) =>
-        (userSession.id && String(a.userId).toLowerCase().trim() === String(userSession.id).toLowerCase().trim()) ||
-        (userSession.email && String(a.userId).toLowerCase().trim() === currentUserEmail) ||
-        (currentUserEmail && currentUserEmail.includes(String(a.userId).toLowerCase().trim()))
-      )
-    );
-    return hasAssignedProgress || hasAssignedCourseFlag;
-  });
-
-  // 2. Find user progress entries ONLY for courses that actually exist in courses array
+  // Find user progress entries ONLY for courses that actually exist in courses array
   // and ONLY for the logged-in user
   const userProgs = userProgress.filter((p) => {
-    const isUserMatch = p.userEmail ? p.userEmail.toLowerCase() === currentUserEmail : true;
+    const isUserMatch = Boolean(currentUserEmail) && p.userEmail.toLowerCase().trim() === currentUserEmail;
     const courseExists = courses.some((c) => c.id === p.courseId);
     return isUserMatch && courseExists;
   });
 
-  // Filter strictly for UNDONE courses (progressPercent < 100)
-  const undoneProgs = userProgs.filter((p) => p.progressPercent < 100);
-
-  // Sort undone progress entries by lastViewedAt timestamp descending
-  // Priority: 
-  // 1. Has lastViewedAt -> newest timestamp first
-  // 2. No lastViewedAt -> higher progressPercent first
-  undoneProgs.sort((a, b) => {
-    if (a.lastViewedAt && b.lastViewedAt) {
-      return new Date(b.lastViewedAt).getTime() - new Date(a.lastViewedAt).getTime();
-    }
-    if (a.lastViewedAt) return -1;
-    if (b.lastViewedAt) return 1;
-    return b.progressPercent - a.progressPercent;
-  });
-
-  let recentUndoneProgress: UserProgress | undefined = undoneProgs[0];
-  let recentUndoneCourse: Course | null = null;
-
-  if (recentUndoneProgress) {
-    const targetId = recentUndoneProgress.courseId;
-    recentUndoneCourse = courses.find((c) => c.id === targetId) || null;
-  }
-
-  // If no course found via progress with lastViewedAt/progress > 0, fallback to assigned undone courses first!
-  if (!recentUndoneCourse) {
-    const undoneAssigned = userAssignedCourses.find((c) => {
-      const prog = userProgress.find(
-        (p) => p.courseId === c.id && (!p.userEmail || p.userEmail.toLowerCase() === currentUserEmail)
-      );
-      return !prog || prog.progressPercent < 100;
-    });
-
-    if (undoneAssigned) {
-      recentUndoneCourse = undoneAssigned;
-      recentUndoneProgress = userProgress.find(
-        (p) => p.courseId === undoneAssigned.id && (!p.userEmail || p.userEmail.toLowerCase() === currentUserEmail)
-      );
-    } else {
-      const fallbackCourse = courses.find((c) => {
-        const prog = userProgress.find(
-          (p) => p.courseId === c.id && (!p.userEmail || p.userEmail.toLowerCase() === currentUserEmail)
-        );
-        return !prog || prog.progressPercent < 100;
-      });
-      if (fallbackCourse) {
-        recentUndoneCourse = fallbackCourse;
-        recentUndoneProgress = userProgress.find(
-          (p) => p.courseId === fallbackCourse.id && (!p.userEmail || p.userEmail.toLowerCase() === currentUserEmail)
-        );
-      }
-    }
-  }
+  const recentUndoneProgress = userProgs
+    .filter((progress) => {
+      if (progress.progressPercent >= 100 || !progress.lastViewedAt) return false;
+      return !Number.isNaN(new Date(progress.lastViewedAt).getTime());
+    })
+    .sort((a, b) => new Date(b.lastViewedAt!).getTime() - new Date(a.lastViewedAt!).getTime())
+    .find((progress) => courses.some((course) => course.id === progress.courseId));
+  const recentUndoneCourse = recentUndoneProgress
+    ? courses.find((course) => course.id === recentUndoneProgress.courseId) || null
+    : null;
+  const recentCourseCreator = recentUndoneCourse?.createdBy
+    ? users.find((user) =>
+      user.id === recentUndoneCourse.createdBy ||
+      user.email.toLowerCase() === recentUndoneCourse.createdBy!.toLowerCase()
+    )
+    : undefined;
+  const recentCourseCreatorName = recentCourseCreator?.name || recentUndoneCourse?.trainer || 'Koruna Academy';
 
   const courseVaSpecialist = getCourseById('c5', 'Senior Mortgage: VA Loan Specialist', 'Mortgage');
   const courseLeading = getCourseById('c6', 'Leading Without Authority', 'Leadership');
@@ -433,7 +383,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
               </div>
 
               <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                Trainer: {recentUndoneCourse.trainer || userSession.name || 'Koruna Academy Trainer'}
+                Created by: {recentCourseCreatorName}
               </div>
             </div>
 
@@ -468,7 +418,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             color: '#64748b'
           }}>
             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>
-              No undone courses found. You have completed all viewed courses!
+              Open a course to continue learning from where you left off.
             </p>
           </div>
         )}

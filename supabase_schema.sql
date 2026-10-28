@@ -197,6 +197,21 @@ DROP POLICY IF EXISTS "Allow delete to notifications" ON public.notifications;
 -- KORUNA ACADEMY - STORAGE SETUP FOR COURSE DOCUMENTS
 -- ========================================================
 
+-- Knowledge Hub resources published by administrators
+CREATE TABLE IF NOT EXISTS public.knowledge_hub_resources (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  section TEXT NOT NULL CHECK (section IN ('Company', 'Policies', 'Operations', 'Industry Knowledge')),
+  description TEXT DEFAULT '',
+  content TEXT,
+  file_name TEXT,
+  file_url TEXT,
+  created_by TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.knowledge_hub_resources ENABLE ROW LEVEL SECURITY;
+
 -- Create the course-documents bucket if it doesn't exist
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('course-documents', 'course-documents', true)

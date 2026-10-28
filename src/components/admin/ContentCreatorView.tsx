@@ -446,11 +446,12 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                     <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
                   </select>
                 </label>
-                <label className="cc-f">
-                  <span>Trainer</span>
-                  <input className="cc-in" value={courseForm.trainer ?? userSession?.name ?? ''} onChange={(e) => patch({ trainer: e.target.value })}
-                    placeholder={userSession?.name || 'Trainer name'} />
-                </label>
+                <div className="cc-f">
+                  <span>Course creator</span>
+                  <div className="cc-in" style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', color: '#475569' }}>
+                    {editingCourseId ? 'The original creator is retained when this course is updated.' : userSession?.name || 'Current user'}
+                  </div>
+                </div>
                 <label className="cc-f span2">
                   <span>Description & learning objectives</span>
                   <textarea className="cc-in" rows={3} value={courseForm.description} onChange={(e) => patch({ description: e.target.value })}

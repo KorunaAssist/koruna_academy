@@ -136,6 +136,18 @@ export interface PostReaction {
   createdAt: string;
 }
 
+export interface KnowledgeHubResource {
+  id: string;
+  title: string;
+  section: 'Company' | 'Policies' | 'Operations' | 'Industry Knowledge';
+  description: string;
+  content?: string;
+  fileName?: string;
+  fileUrl?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
 
 export interface Department {
   id: string;
@@ -732,6 +744,54 @@ const notifyCourseListeners = () => {
 // ==========================================
 
 export const dbService = {
+  async getKnowledgeHubResources(): Promise<KnowledgeHubResource[]> {
+    const localResources = getStorageItem<KnowledgeHubResource[]>('koruna_knowledge_hub_resources', []);
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('knowledge_hub_resources').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          return data.map((resource: any) => ({
+            id: String(resource.id), title: resource.title, section: resource.section,
+            description: resource.description || '', content: resource.content || undefined,
+            fileName: resource.file_name || undefined, fileUrl: resource.file_url || undefined,
+            createdAt: resource.created_at, createdBy: resource.created_by || undefined
+          }));
+        }
+      } catch (err) {
+        console.warn('Unable to load Knowledge Hub resources from Supabase:', err);
+      }
+    }
+    return localResources.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async saveKnowledgeHubResource(resource: KnowledgeHubResource): Promise<KnowledgeHubResource> {
+    const localResources = getStorageItem<KnowledgeHubResource[]>('koruna_knowledge_hub_resources', []);
+    setStorageItem('koruna_knowledge_hub_resources', [resource, ...localResources.filter(item => item.id !== resource.id)]);
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.from('knowledge_hub_resources').upsert({
+          id: resource.id, title: resource.title, section: resource.section, description: resource.description,
+          content: resource.content || null, file_name: resource.fileName || null, file_url: resource.fileUrl || null,
+          created_at: resource.createdAt, created_by: resource.createdBy || null
+        });
+        if (error) console.warn('Unable to save Knowledge Hub resource to Supabase:', error.message);
+      } catch (err) {
+        console.warn('Unable to save Knowledge Hub resource to Supabase:', err);
+      }
+    }
+    window.dispatchEvent(new Event('koruna-knowledge-hub-updated'));
+    return resource;
+  },
+
+  async deleteKnowledgeHubResource(id: string): Promise<void> {
+    const localResources = getStorageItem<KnowledgeHubResource[]>('koruna_knowledge_hub_resources', []);
+    setStorageItem('koruna_knowledge_hub_resources', localResources.filter(resource => resource.id !== id));
+    if (isSupabaseConfigured()) {
+      try { await supabase.from('knowledge_hub_resources').delete().eq('id', id); } catch (err) { console.warn('Unable to delete Knowledge Hub resource from Supabase:', err); }
+    }
+    window.dispatchEvent(new Event('koruna-knowledge-hub-updated'));
+  },
+
   notifyCoursesChanged(): void {
     if (realtimeBroadcastChannel) {
       try {
