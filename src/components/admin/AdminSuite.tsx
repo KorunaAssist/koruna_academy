@@ -238,6 +238,29 @@ const AdminSuiteStyles = () => (
     .as-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 1.25rem; align-items: start; }
     @media (max-width: 920px) { .as-split { grid-template-columns: 1fr; } }
     .as-two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem; align-items: start; }
+    .as-overview-stat { appearance: none; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 0.8rem; position: relative; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+    .as-overview-stat:hover { border-color: var(--brand); box-shadow: 0 7px 16px rgba(17,24,39,.07); transform: translateY(-1px); }
+    .as-overview-stat:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+    .as-overview-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--brand-tint); color: var(--brand); }
+    .as-overview-arrow { margin-left: auto; color: var(--ink-3); }
+    .as-list-main { display: flex; flex-direction: column; gap: 0.12rem; }
+    .as-list-main small { color: var(--ink-3); font-size: 0.75rem; font-weight: 400; }
+    .khm-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .khm-form label { display: grid; gap: 0.4rem; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+    .khm-form input, .khm-form select, .khm-form textarea { width: 100%; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0.65rem 0.7rem; color: var(--ink); background: #fff; font: inherit; font-weight: 400; resize: vertical; }
+    .khm-full { grid-column: 1 / -1; }
+    .khm-upload { display: flex; align-items: center; gap: 0.55rem; min-height: 48px; padding: 0.55rem 0.65rem; border: 1px dashed #cbd5e1; border-radius: var(--r-sm); color: var(--ink-3); font-size: 0.8125rem; }
+    .khm-upload input { display: none; }
+    .khm-upload span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .khm-actions { display: flex; justify-content: flex-end; }
+    .khm-list { display: grid; gap: 0.75rem; }
+    .khm-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.8rem; border: 1px solid var(--line-soft); border-radius: var(--r-sm); }
+    .khm-item > svg { flex: 0 0 auto; color: var(--brand); margin-top: 0.1rem; }
+    .khm-item > div { min-width: 0; flex: 1; }
+    .khm-item strong, .khm-item small { display: block; }
+    .khm-item small, .khm-item p { color: var(--ink-3); font-size: 0.75rem; }
+    .khm-item p { margin-top: 0.2rem; }
+    @media (max-width: 640px) { .khm-form { grid-template-columns: 1fr; } }
 
     @media (prefers-reduced-motion: reduce) { .as-root * { transition: none !important; } }
   `}</style>
@@ -419,7 +442,13 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
 
       {/* DASHBOARD OVERVIEW */}
       {activeInnerTab === 'overview' && (
-        <AdminOverviewView users={users} courses={courses} totalHours={totalHours} />
+        <AdminOverviewView
+          users={users}
+          courses={courses}
+          totalHours={totalHours}
+          teamProgress={teamProgress}
+          onNavigate={setActiveInnerTab}
+        />
       )}
 
       {/* CONTENT CREATOR */}
@@ -453,6 +482,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       {/* COURSES INVENTORY */}
       {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
       {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
+
+      {activeInnerTab === 'knowledge_hub' && <KnowledgeHubManagerView userSession={userSession} showToast={showToast} />}
 
       {activeInnerTab === 'inventory' && (
         <CourseInventoryView

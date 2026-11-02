@@ -1,22 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Search,
-  BookOpen,
-  CheckCircle2,
-  Clock,
-  Plus,
-  X,
-  Copy,
-  Check,
-  LayoutGrid,
-  List,
-  AlertCircle,
-  TrendingUp,
-  Send,
-  ChevronRight,
-  UserCheck,
-  RotateCcw
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Check, Plus, X, Copy, AlertCircle, RotateCcw } from 'lucide-react';
 import { dbService, type Course, type DatabaseUser, type UserProgress, type Department } from '../../services/db';
 import { LoadingModal } from '../LoadingModal';
 
@@ -28,6 +11,8 @@ export interface AdminAssignmentsViewProps {
   departments?: Department[];
 }
 
+type StatusFilter = 'all' | 'assigned' | 'unassigned' | 'completed';
+
 const roleLabel: Record<string, string> = {
   employee: 'Employee',
   trainer: 'Trainer',
@@ -35,29 +20,22 @@ const roleLabel: Record<string, string> = {
   admin: 'Administrator'
 };
 
-// Deterministic avatar gradient generator
-const getAvatarGradient = (name: string = '') => {
-  const gradients = [
-    'linear-gradient(135deg, #a31555 0%, #e11d48 100%)',
-    'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-    'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
-    'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-    'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
-    'linear-gradient(135deg, #7c3aed 0%, #c084fc 100%)'
-  ];
+const AVATAR_COLORS = ['#a31555', '#4f46e5', '#0284c7', '#059669', '#d97706', '#7c3aed'];
+
+const avatarColor = (name = '') => {
   let sum = 0;
-  for (let i = 0; i < name.length; i++) {
-    sum += name.charCodeAt(i);
-  }
-  return gradients[sum % gradients.length];
+  for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
 };
 
-const getInitials = (name: string = '') => {
+const getInitials = (name = '') => {
   if (!name) return 'U';
   const parts = name.trim().split(' ');
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.substring(0, 2).toUpperCase();
 };
+
+const lc = (s?: string) => (s || '').toLowerCase();
 
 export const AdminAssignmentsView: React.FC<AdminAssignmentsViewProps> = ({
   users,
@@ -66,172 +44,172 @@ export const AdminAssignmentsView: React.FC<AdminAssignmentsViewProps> = ({
   teamProgress = {},
   departments = []
 }) => {
-  // State management
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState<string>('all');
-  const [selectedRole, setSelectedRole] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'assigned' | 'unassigned' | 'completed'>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  // Interactive UI state
+  const [panelEmail, setPanelEmail] = useState<string | null>(null);
+  const [courseSearch, setCourseSearch] = useState('');
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
-  const [quickEnrollUser, setQuickEnrollUser] = useState<DatabaseUser | null>(null);
-  const [viewDetailsUser, setViewDetailsUser] = useState<DatabaseUser | null>(null);
-  const [nudgedUsers, setNudgedUsers] = useState<Record<string, boolean>>({});
   const [assigningMap, setAssigningMap] = useState<Record<string, boolean>>({});
   const [activeAssignment, setActiveAssignment] = useState<{
     action: 'assign' | 'unassign';
     courseTitle: string;
     userName: string;
   } | null>(null);
-  const [modalCourseSearch, setModalCourseSearch] = useState('');
 
-  // Local user progress store to allow real-time interactive updates
   const [userProgressMap, setUserProgressMap] = useState<Record<string, UserProgress[]>>(teamProgress);
 
-  // Sync external teamProgress prop or load from dbService on mount
   useEffect(() => {
     setUserProgressMap(teamProgress);
   }, [teamProgress]);
 
-  // Load progress if userProgressMap is missing data for users
+  // Load progress for users missing from the map (in parallel)
   useEffect(() => {
     let isMounted = true;
-    const loadMissingProgress = async () => {
-      const map: Record<string, UserProgress[]> = { ...userProgressMap };
-      let changed = false;
+    const missing = users.filter(u => !userProgressMap[u.email.toLowerCase()]);
+    if (missing.length === 0) return;
 
-      for (const u of users) {
-        const key = u.email.toLowerCase();
-        if (!map[key]) {
+    (async () => {
+      const results = await Promise.all(
+        missing.map(async u => {
           try {
-            const prog = await dbService.getUserProgress(u.email);
-            map[key] = prog;
-            changed = true;
+            return [u.email.toLowerCase(), await dbService.getUserProgress(u.email)] as const;
           } catch (e) {
             console.error('Error fetching progress for', u.email, e);
+            return null;
           }
-        }
+        })
+      );
+      if (!isMounted) return;
+      const loaded = results.filter((r): r is readonly [string, UserProgress[]] => r !== null);
+      if (loaded.length > 0) {
+        setUserProgressMap(prev => ({ ...prev, ...Object.fromEntries(loaded) }));
       }
-      if (changed && isMounted) {
-        setUserProgressMap(map);
-      }
-    };
+    })();
 
-    loadMissingProgress();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
-  // Helper to get assigned courses & completion info for a given user
-  const getUserAssignmentsInfo = (user: DatabaseUser) => {
-    const key = user.email.toLowerCase();
-    const userProgs = userProgressMap[key] || [];
-    const userAssignmentIds = new Set(
+  // Close panel on Escape
+  useEffect(() => {
+    if (!panelEmail) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPanelEmail(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [panelEmail]);
+
+  const getInfo = (user: DatabaseUser) => {
+    const userProgs = userProgressMap[user.email.toLowerCase()] || [];
+    const ids = new Set(
       [user.email, user.id, user.userId !== undefined ? String(user.userId) : undefined]
-        .filter((value): value is string => Boolean(value))
-        .map(value => value.toLowerCase().trim())
+        .filter((v): v is string => Boolean(v))
+        .map(v => v.toLowerCase().trim())
     );
 
-    // Filter courses that are assigned to this user
-    const assigned = courses.map(course => {
-      const prog = userProgs.find(p => p.courseId === course.id);
-      const hasAssignedProgress = Boolean(
-        prog && (prog.dueDate || prog.assignedBy || (prog.applicationId !== undefined && prog.applicationId > 0))
-      );
-      const hasAssignedCourseFlag = Boolean(
-        course.assignedUsers?.some(a => userAssignmentIds.has(String(a.userId).toLowerCase().trim()))
-      );
-      const isAssigned = hasAssignedProgress || hasAssignedCourseFlag;
-      const progressPercent = prog ? prog.progressPercent : 0;
-      const isCompleted = progressPercent >= 100;
-      const overdue = prog ? prog.overdue : false;
+    const assigned = courses
+      .map(course => {
+        const prog = userProgs.find(p => p.courseId === course.id);
+        const fromProgress = Boolean(
+          prog && (prog.dueDate || prog.assignedBy || (prog.applicationId !== undefined && prog.applicationId > 0))
+        );
+        const fromCourse = Boolean(
+          course.assignedUsers?.some(a => ids.has(String(a.userId).toLowerCase().trim()))
+        );
+        const progressPercent = prog ? prog.progressPercent : 0;
+        return {
+          course,
+          prog,
+          isAssigned: fromProgress || fromCourse,
+          progressPercent,
+          isCompleted: progressPercent >= 100,
+          overdue: prog ? Boolean(prog.overdue) : false
+        };
+      })
+      .filter(i => i.isAssigned);
 
-      return {
-        course,
-        prog,
-        isAssigned,
-        progressPercent,
-        isCompleted,
-        overdue
-      };
-    }).filter(item => item.isAssigned);
+    const total = assigned.length;
+    const completed = assigned.filter(a => a.isCompleted).length;
+    const overdue = assigned.filter(a => a.overdue && !a.isCompleted).length;
+    const avg = total > 0 ? Math.round(assigned.reduce((s, a) => s + a.progressPercent, 0) / total) : 0;
 
-    const totalAssigned = assigned.length;
-    const completedCount = assigned.filter(a => a.isCompleted).length;
-    const inProgressCount = assigned.filter(a => !a.isCompleted && a.progressPercent > 0).length;
-    const notStartedCount = assigned.filter(a => a.progressPercent === 0).length;
-
-    const avgProgress = totalAssigned > 0
-      ? Math.round(assigned.reduce((acc, curr) => acc + curr.progressPercent, 0) / totalAssigned)
-      : 0;
-
-    return {
-      assigned,
-      totalAssigned,
-      completedCount,
-      inProgressCount,
-      notStartedCount,
-      avgProgress
-    };
+    return { assigned, total, completed, overdue, avg };
   };
 
-  // Filter users based on search query, department, role, and assignment status
-  const q = (s: string) => s.toLowerCase();
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = q(u.name).includes(q(searchQuery)) || q(u.email).includes(q(searchQuery));
+  // Compute once per render for all users
+  const infoMap = useMemo(() => {
+    const m: Record<string, ReturnType<typeof getInfo>> = {};
+    users.forEach(u => {
+      m[u.email.toLowerCase()] = getInfo(u);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, courses, userProgressMap]);
+
+  const infoOf = (u: DatabaseUser) => infoMap[u.email.toLowerCase()] ?? getInfo(u);
+
+  // Filters (status is applied last so tab counts reflect the other filters)
+  const baseFiltered = users.filter(u => {
+    const q = lc(searchQuery);
+    const matchesSearch = lc(u.name).includes(q) || lc(u.email).includes(q);
     const matchesDept = selectedDept === 'all' || (u.department || 'General') === selectedDept;
     const matchesRole = selectedRole === 'all' || u.role === selectedRole;
+    return matchesSearch && matchesDept && matchesRole;
+  });
 
-    if (!matchesSearch || !matchesDept || !matchesRole) return false;
+  const counts = {
+    all: baseFiltered.length,
+    assigned: baseFiltered.filter(u => infoOf(u).total > 0).length,
+    unassigned: baseFiltered.filter(u => infoOf(u).total === 0).length,
+    completed: baseFiltered.filter(u => {
+      const i = infoOf(u);
+      return i.total > 0 && i.completed === i.total;
+    }).length
+  };
 
-    const info = getUserAssignmentsInfo(u);
-    if (statusFilter === 'assigned') return info.totalAssigned > 0;
-    if (statusFilter === 'unassigned') return info.totalAssigned === 0;
-    if (statusFilter === 'completed') return info.totalAssigned > 0 && info.completedCount === info.totalAssigned;
-
+  const filteredUsers = baseFiltered.filter(u => {
+    const i = infoOf(u);
+    if (statusFilter === 'assigned') return i.total > 0;
+    if (statusFilter === 'unassigned') return i.total === 0;
+    if (statusFilter === 'completed') return i.total > 0 && i.completed === i.total;
     return true;
   });
 
-  // Calculate platform summary stats across filtered employees
-  const totalEmployeesCount = filteredUsers.length;
-  let aggregateAssignedCourses = 0;
-  let aggregateCompletedCourses = 0;
-  let sumAvgProgress = 0;
+  const deptList = Array.from(
+    new Set([...departments.map(d => d.name), ...users.map(u => u.department || 'General')])
+  ).filter(Boolean);
 
-  filteredUsers.forEach(u => {
-    const info = getUserAssignmentsInfo(u);
-    aggregateAssignedCourses += info.totalAssigned;
-    aggregateCompletedCourses += info.completedCount;
-    sumAvgProgress += info.avgProgress;
-  });
+  const tabs: { key: StatusFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'assigned', label: 'Enrolled' },
+    { key: 'unassigned', label: 'Needs courses' },
+    { key: 'completed', label: 'Completed' }
+  ];
 
-  const globalAvgProgress = totalEmployeesCount > 0 ? Math.round(sumAvgProgress / totalEmployeesCount) : 0;
-
-  // Handle course assignment/unassignment with interactive feedback
-  const onToggleCourseAssignment = async (courseId: string, userEmail: string) => {
+  const toggleAssignment = async (courseId: string, userEmail: string) => {
     const lockKey = `${userEmail}-${courseId}`;
     if (assigningMap[lockKey]) return;
 
     const course = courses.find(c => c.id === courseId);
-    const user = users.find(u => u.email.toLowerCase() === userEmail.toLowerCase());
-    const userInfo = user ? getUserAssignmentsInfo(user) : null;
-    const isCurrentlyAssigned = Boolean(userInfo?.assigned.some(item => item.course.id === courseId));
+    const user = users.find(u => lc(u.email) === lc(userEmail));
+    const isAssigned = Boolean(user && infoOf(user).assigned.some(i => i.course.id === courseId));
 
     setAssigningMap(prev => ({ ...prev, [lockKey]: true }));
     setActiveAssignment({
-      action: isCurrentlyAssigned ? 'unassign' : 'assign',
+      action: isAssigned ? 'unassign' : 'assign',
       courseTitle: course?.title || 'course',
       userName: user?.name || userEmail
     });
     try {
       await handleAssignCourse(courseId, userEmail);
-
-      // Refresh local user progress state
-      const freshProg = await dbService.getUserProgress(userEmail);
-      setUserProgressMap(prev => ({
-        ...prev,
-        [userEmail.toLowerCase()]: freshProg
-      }));
+      const fresh = await dbService.getUserProgress(userEmail);
+      setUserProgressMap(prev => ({ ...prev, [userEmail.toLowerCase()]: fresh }));
     } catch (err) {
       console.error('Failed to toggle course assignment:', err);
     } finally {
@@ -240,517 +218,143 @@ export const AdminAssignmentsView: React.FC<AdminAssignmentsViewProps> = ({
     }
   };
 
-  // Handle email clipboard copy
-  const handleCopyEmail = (email: string) => {
+  const copyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
     setCopiedEmail(email);
-    setTimeout(() => setCopiedEmail(null), 2000);
+    setTimeout(() => setCopiedEmail(null), 1800);
   };
 
-  // Handle nudge employee reminder
-  const handleNudge = (userEmail: string) => {
-    setNudgedUsers(prev => ({ ...prev, [userEmail]: true }));
-    setTimeout(() => {
-      setNudgedUsers(prev => ({ ...prev, [userEmail]: false }));
-    }, 4000);
+  const openPanel = (email: string) => {
+    setCourseSearch('');
+    setPanelEmail(email);
   };
 
-  // Get department list for filter
-  const deptList = Array.from(new Set([
-    ...departments.map(d => d.name),
-    ...users.map(u => u.department || 'General')
-  ])).filter(Boolean);
+  const panelUser = panelEmail ? users.find(u => lc(u.email) === lc(panelEmail)) ?? null : null;
+  const panelInfo = panelUser ? infoOf(panelUser) : null;
+  const panelCourses = panelUser
+    ? courses.filter(c => lc(c.title).includes(lc(courseSearch)) || lc(c.code).includes(lc(courseSearch)))
+    : [];
 
   return (
-    <div className="as-assign-hub">
-      {/* Dynamic Scoped CSS Styles for Interactive Employee Cards */}
+    <div className="ah">
       <style>{`
-        .as-assign-hub {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-          width: 100%;
+        .ah {
+          --ah-accent: #a31555;
+          --ah-accent-soft: #fbeef4;
+          --ah-ink: #111827;
+          --ah-muted: #6b7280;
+          --ah-line: var(--line, #e5e7eb);
+          --ah-ok: #059669;
+          --ah-warn: #b45309;
+          --ah-bad: #dc2626;
+          display: flex; flex-direction: column; gap: 1rem; width: 100%;
+          color: var(--ah-ink);
         }
+        .ah button { font: inherit; }
+        .ah :focus-visible { outline: 2px solid var(--ah-accent); outline-offset: 2px; }
 
-        /* Metrics Bar */
-        .as-metrics-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-          gap: 1rem;
+        /* Toolbar */
+        .ah-bar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+        .ah-search { position: relative; flex: 1 1 240px; min-width: 200px; }
+        .ah-search svg { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #9ca3af; pointer-events: none; }
+        .ah-field, .ah-select {
+          height: 38px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff;
+          font-size: 0.875rem; color: var(--ah-ink);
         }
+        .ah-field { width: 100%; padding: 0 0.75rem 0 2.15rem; }
+        .ah-select { padding: 0 0.6rem; cursor: pointer; }
+        .ah-field:focus, .ah-select:focus { outline: none; border-color: var(--ah-accent); box-shadow: 0 0 0 3px rgba(163,21,85,.12); }
 
-        .as-metric-card {
-          background: #ffffff;
-          border: 1px solid var(--line, #e5e7eb);
-          border-radius: 14px;
-          padding: 1.15rem 1.25rem;
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        /* Status tabs */
+        .ah-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--ah-line); overflow-x: auto; }
+        .ah-tab {
+          appearance: none; background: none; border: 0; cursor: pointer; white-space: nowrap;
+          padding: 0.6rem 0.9rem; font-size: 0.875rem; font-weight: 500; color: var(--ah-muted);
+          border-bottom: 2px solid transparent; margin-bottom: -1px;
+          display: inline-flex; align-items: center; gap: 0.4rem;
         }
+        .ah-tab:hover { color: var(--ah-ink); }
+        .ah-tab[aria-selected="true"] { color: var(--ah-accent); border-bottom-color: var(--ah-accent); font-weight: 600; }
+        .ah-count { font-size: 0.75rem; padding: 1px 7px; border-radius: 999px; background: #f3f4f6; color: var(--ah-muted); font-weight: 600; }
+        .ah-tab[aria-selected="true"] .ah-count { background: var(--ah-accent-soft); color: var(--ah-accent); }
 
-        .as-metric-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+        /* List */
+        .ah-list { background: #fff; border: 1px solid var(--ah-line); border-radius: 12px; overflow: hidden; }
+        .ah-head, .ah-row {
+          display: grid; grid-template-columns: minmax(220px, 2.2fr) minmax(120px, 1fr) minmax(180px, 1.6fr) auto;
+          align-items: center; gap: 1rem; padding: 0.8rem 1.1rem;
         }
+        .ah-head { background: #fafafa; border-bottom: 1px solid var(--ah-line); font-size: 0.78rem; font-weight: 600; color: var(--ah-muted); }
+        .ah-row { border-bottom: 1px solid #f1f2f4; cursor: pointer; transition: background .12s ease; }
+        .ah-row:last-child { border-bottom: 0; }
+        .ah-row:hover { background: #fafafa; }
 
-        .as-metric-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
+        .ah-person { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+        .ah-avatar { width: 36px; height: 36px; border-radius: 50%; color: #fff; font-size: 0.8rem; font-weight: 700; display: grid; place-items: center; flex-shrink: 0; }
+        .ah-name { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ah-sub { font-size: 0.8rem; color: var(--ah-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ah-role { font-size: 0.85rem; line-height: 1.35; min-width: 0; }
+
+        .ah-prog { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+        .ah-prog-top { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--ah-muted); }
+        .ah-prog-top strong { color: var(--ah-ink); font-weight: 600; }
+        .ah-bar-bg { height: 6px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+        .ah-bar-fill { height: 100%; border-radius: 999px; background: var(--ah-accent); transition: width .3s ease; }
+        .ah-bar-fill--done { background: var(--ah-ok); }
+        .ah-none { font-size: 0.85rem; color: #9ca3af; }
+        .ah-flag { color: var(--ah-bad); font-weight: 600; }
+
+        .ah-btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; cursor: pointer;
+          height: 34px; padding: 0 0.85rem; border-radius: 8px; font-size: 0.84rem; font-weight: 600;
+          border: 1px solid #d1d5db; background: #fff; color: #374151; white-space: nowrap;
         }
+        .ah-btn:hover { border-color: var(--ah-accent); color: var(--ah-accent); background: var(--ah-accent-soft); }
+        .ah-btn:disabled { opacity: .6; cursor: default; }
+        .ah-btn--solid { background: var(--ah-accent); border-color: var(--ah-accent); color: #fff; }
+        .ah-btn--solid:hover { background: #85104a; border-color: #85104a; color: #fff; }
 
-        .as-metric-icon--primary { background: #fbeef4; color: #a31555; }
-        .as-metric-icon--info { background: #eff6ff; color: #2563eb; }
-        .as-metric-icon--success { background: #f0fdf4; color: #16a34a; }
-        .as-metric-icon--warning { background: #fffbeb; color: #d97706; }
+        .ah-empty { padding: 3rem 1rem; text-align: center; color: var(--ah-muted); font-size: 0.9rem; }
+        .ah-empty svg { margin: 0 auto 0.6rem; display: block; color: #9ca3af; }
 
-        .as-metric-val {
-          font-size: 1.5rem;
-          font-weight: 700;
-          line-height: 1.2;
-          color: #111827;
+        /* Side panel */
+        .ah-scrim { position: fixed; inset: 0; background: rgba(17,24,39,.4); z-index: 999; animation: ah-fade .15s ease; }
+        .ah-panel {
+          position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100%); background: #fff; z-index: 1000;
+          display: flex; flex-direction: column; box-shadow: -12px 0 32px rgba(0,0,0,.12);
+          animation: ah-slide .22s cubic-bezier(.16,1,.3,1);
         }
+        .ah-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--ah-line); }
+        .ah-x { appearance: none; border: 0; background: none; color: var(--ah-muted); cursor: pointer; padding: 6px; border-radius: 6px; display: grid; place-items: center; }
+        .ah-x:hover { background: #f3f4f6; color: var(--ah-ink); }
+        .ah-copy { appearance: none; border: 0; background: none; cursor: pointer; color: #9ca3af; padding: 2px; display: inline-flex; vertical-align: middle; border-radius: 4px; }
+        .ah-copy:hover { color: var(--ah-accent); }
+        .ah-panel-body { flex: 1; overflow-y: auto; padding: 1.1rem 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.1rem; }
+        .ah-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+        .ah-stat { border: 1px solid var(--ah-line); border-radius: 10px; padding: 0.6rem 0.8rem; }
+        .ah-stat b { display: block; font-size: 1.25rem; line-height: 1.2; }
+        .ah-stat span { font-size: 0.78rem; color: var(--ah-muted); }
+        .ah-h { font-size: 0.9rem; font-weight: 700; margin: 0; }
 
-        .as-metric-lbl {
-          font-size: 0.8125rem;
-          color: #6b7280;
-          font-weight: 500;
-          margin-top: 2px;
-        }
+        .ah-course { display: flex; align-items: center; gap: 0.85rem; padding: 0.7rem 0.1rem; border-bottom: 1px solid #f1f2f4; }
+        .ah-course:last-child { border-bottom: 0; }
+        .ah-course-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+        .ah-course-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ah-course-title span { color: var(--ah-accent); margin-right: 0.35rem; }
+        .ah-course-meta { font-size: 0.78rem; color: var(--ah-muted); }
+        .ah-spin { animation: ah-spin .8s linear infinite; }
 
-        /* Filter Controls */
-        .as-controls-card {
-          background: #ffffff;
-          border: 1px solid var(--line, #e5e7eb);
-          border-radius: 14px;
-          padding: 1rem 1.25rem;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: space-between;
-          gap: 1rem;
-        }
+        @keyframes ah-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes ah-slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+        @keyframes ah-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .ah-scrim, .ah-panel, .ah-spin, .ah-bar-fill { animation: none; transition: none; } }
 
-        .as-controls-left {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.75rem;
-          flex: 1;
-          min-width: 280px;
-        }
-
-        .as-controls-right {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .as-filter-select {
-          height: 38px;
-          padding: 0 0.85rem;
-          font-size: 0.84rem;
-          font-weight: 500;
-          color: #374151;
-          background: #ffffff;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          cursor: pointer;
-          outline: none;
-          transition: border-color 0.15s ease;
-        }
-
-        .as-filter-select:focus {
-          border-color: #a31555;
-          box-shadow: 0 0 0 3px rgba(163, 21, 85, 0.12);
-        }
-
-        .as-view-btn {
-          height: 38px;
-          width: 38px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          border: 1px solid #d1d5db;
-          background: #ffffff;
-          color: #6b7280;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .as-view-btn.is-active, .as-view-btn:hover {
-          background: #fbeef4;
-          border-color: #a31555;
-          color: #a31555;
-        }
-
-        /* Cards Grid Layout */
-        .as-employee-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-          gap: 1.25rem;
-        }
-
-        /* Interactive Employee Card */
-        .as-emp-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-          transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
-          position: relative;
-        }
-
-        .as-emp-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.03);
-          border-color: #f43f5e;
-        }
-
-        /* Card Top Banner / Header */
-        .as-emp-head {
-          padding: 1.25rem 1.25rem 1rem;
-          display: flex;
-          align-items: flex-start;
-          gap: 1rem;
-          border-bottom: 1px solid #f3f4f6;
-          background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
-        }
-
-        .as-emp-avatar {
-          width: 52px;
-          height: 52px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffffff;
-          font-weight: 700;
-          font-size: 1.15rem;
-          letter-spacing: -0.02em;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
-          flex-shrink: 0;
-          position: relative;
-        }
-
-        .as-emp-details {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .as-emp-name-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-        }
-
-        .as-emp-name {
-          font-size: 1.05rem;
-          font-weight: 700;
-          color: #111827;
-          line-height: 1.3;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .as-emp-email-wrap {
-          display: flex;
-          align-items: center;
-          gap: 0.35rem;
-          margin-top: 2px;
-        }
-
-        .as-emp-email {
-          font-size: 0.8125rem;
-          color: #6b7280;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .as-copy-btn {
-          border: none;
-          background: transparent;
-          color: #9ca3af;
-          cursor: pointer;
-          padding: 2px;
-          border-radius: 4px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          transition: color 0.15s, background 0.15s;
-        }
-
-        .as-copy-btn:hover {
-          color: #a31555;
-          background: #fbeef4;
-        }
-
-        .as-emp-badges {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.35rem;
-          margin-top: 0.6rem;
-        }
-
-        .as-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 2px 8px;
-          border-radius: 999px;
-          font-size: 0.725rem;
-          font-weight: 600;
-          line-height: 1.4;
-        }
-
-        .as-pill--dept { background: #f3f4f6; color: #4b5563; }
-        .as-pill--employee { background: #fbeef4; color: #a31555; }
-        .as-pill--trainer { background: #fffbeb; color: #b45309; }
-        .as-pill--admin { background: #fef2f2; color: #b91c1c; }
-        .as-pill--team_leader { background: #eff6ff; color: #1d4ed8; }
-
-        /* Card Section: Assigned Courses */
-        .as-emp-body {
-          padding: 1rem 1.25rem;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 0.85rem;
-        }
-
-        .as-section-hdr {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 0.785rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          color: #6b7280;
-        }
-
-        .as-course-chips {
-          display: flex;
-          flex-direction: column;
-          gap: 0.6rem;
-        }
-
-        .as-course-chip {
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
-          padding: 0.65rem 0.85rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.4rem;
-          transition: border-color 0.15s ease, background 0.15s ease;
-        }
-
-        .as-course-chip:hover {
-          background: #ffffff;
-          border-color: #cbd5e1;
-        }
-
-        .as-course-chip-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-        }
-
-        .as-course-title-lbl {
-          font-size: 0.85rem;
-          font-weight: 600;
-          color: #1f2937;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .as-unassign-btn {
-          border: none;
-          background: transparent;
-          color: #9ca3af;
-          cursor: pointer;
-          border-radius: 4px;
-          padding: 2px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.15s ease;
-        }
-
-        .as-unassign-btn:hover {
-          color: #dc2626;
-          background: #fef2f2;
-        }
-
-        .as-mini-progress-bg {
-          height: 5px;
-          width: 100%;
-          background: #e5e7eb;
-          border-radius: 999px;
-          overflow: hidden;
-        }
-
-        .as-mini-progress-fill {
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, #a31555 0%, #f43f5e 100%);
-          transition: width 0.4s ease;
-        }
-
-        .as-mini-progress-fill--completed {
-          background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-        }
-
-        .as-chip-foot {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 0.725rem;
-          color: #6b7280;
-        }
-
-        .as-empty-courses {
-          padding: 1.25rem 1rem;
-          text-align: center;
-          border: 1px dashed #d1d5db;
-          border-radius: 10px;
-          background: #fafafa;
-          color: #6b7280;
-          font-size: 0.8125rem;
-        }
-
-        /* Quick Course Selector in Card */
-        .as-quick-assign-row {
-          display: flex;
-          gap: 0.5rem;
-          margin-top: 0.25rem;
-        }
-
-        .as-card-foot {
-          padding: 0.85rem 1.25rem;
-          background: #f9fafb;
-          border-top: 1px solid #f3f4f6;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-        }
-
-        .as-footer-btn {
-          font-size: 0.8125rem;
-          font-weight: 600;
-          color: #4b5563;
-          background: #ffffff;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          padding: 0.4rem 0.75rem;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          transition: all 0.15s ease;
-        }
-
-        .as-footer-btn:hover {
-          background: #fbeef4;
-          border-color: #a31555;
-          color: #a31555;
-        }
-
-        .as-footer-btn--primary {
-          background: #a31555;
-          color: #ffffff;
-          border-color: #a31555;
-        }
-
-        .as-footer-btn--primary:hover {
-          background: #85104a;
-          color: #ffffff;
-        }
-
-        /* Modal Styles */
-        .as-assign-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(17, 24, 39, 0.55);
-          backdrop-filter: blur(4px);
-          z-index: 999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 1.5rem;
-          animation: fadeIn 0.2s ease;
-        }
-
-        .as-assign-modal {
-          background: #ffffff;
-          border-radius: 18px;
-          width: 100%;
-          max-width: 640px;
-          max-height: 85vh;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-          overflow: hidden;
-          animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .as-modal-hdr {
-          padding: 1.25rem 1.5rem;
-          border-bottom: 1px solid #e5e7eb;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .as-modal-body {
-          padding: 1.25rem 1.5rem;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .as-modal-course-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.85rem 1rem;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          background: #ffffff;
-          transition: border-color 0.15s, background 0.15s;
-        }
-
-        .as-modal-course-item:hover {
-          border-color: #a31555;
-          background: #fcf6f9;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scaleUp {
-          from { opacity: 0; transform: scale(0.96); }
-          to { opacity: 1; transform: scale(1); }
+        @media (max-width: 820px) {
+          .ah-head { display: none; }
+          .ah-row { grid-template-columns: 1fr auto; gap: 0.6rem 0.75rem; }
+          .ah-row .ah-role { grid-column: 1; grid-row: 2; }
+          .ah-row .ah-prog { grid-column: 1 / -1; grid-row: 3; }
+          .ah-row .ah-btn { grid-column: 2; grid-row: 1; }
         }
       `}</style>
 
@@ -762,618 +366,230 @@ export const AdminAssignmentsView: React.FC<AdminAssignmentsViewProps> = ({
         />
       )}
 
-      {/* 1. TOP METRICS DASHBOARD */}
-      <div className="as-metrics-grid">
-        <div className="as-metric-card">
-          <div className="as-metric-icon as-metric-icon--primary">
-            <UserCheck size={22} />
-          </div>
-          <div>
-            <div className="as-metric-val">{totalEmployeesCount}</div>
-            <div className="as-metric-lbl">Total Employees</div>
-          </div>
+      {/* Toolbar */}
+      <div className="ah-bar">
+        <div className="ah-search">
+          <Search size={16} />
+          <input
+            className="ah-field"
+            type="text"
+            placeholder="Search by name or email"
+            aria-label="Search employees"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
-
-        <div className="as-metric-card">
-          <div className="as-metric-icon as-metric-icon--info">
-            <BookOpen size={22} />
-          </div>
-          <div>
-            <div className="as-metric-val">{aggregateAssignedCourses}</div>
-            <div className="as-metric-lbl">Active Enrollments</div>
-          </div>
-        </div>
-
-        <div className="as-metric-card">
-          <div className="as-metric-icon as-metric-icon--success">
-            <CheckCircle2 size={22} />
-          </div>
-          <div>
-            <div className="as-metric-val">{aggregateCompletedCourses}</div>
-            <div className="as-metric-lbl">Completed Courses</div>
-          </div>
-        </div>
-
-        <div className="as-metric-card">
-          <div className="as-metric-icon as-metric-icon--warning">
-            <TrendingUp size={22} />
-          </div>
-          <div>
-            <div className="as-metric-val">{globalAvgProgress}%</div>
-            <div className="as-metric-lbl">Avg Completion Rate</div>
-          </div>
-        </div>
+        <select className="ah-select" aria-label="Department" value={selectedDept} onChange={e => setSelectedDept(e.target.value)}>
+          <option value="all">All departments</option>
+          {deptList.map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        <select className="ah-select" aria-label="Role" value={selectedRole} onChange={e => setSelectedRole(e.target.value)}>
+          <option value="all">All roles</option>
+          {Object.entries(roleLabel).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
 
-      {/* 2. CONTROLS & FILTER TOOLBAR */}
-      <div className="as-controls-card">
-        <div className="as-controls-left">
-          <div className="as-search" style={{ maxWidth: '260px' }}>
-            <Search size={15} />
-            <input
-              type="text"
-              className="as-input"
-              placeholder="Search employee or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <select
-            className="as-filter-select"
-            value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
-          >
-            <option value="all">All Departments</option>
-            {deptList.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-
-          <select
-            className="as-filter-select"
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-          >
-            <option value="all">All Roles</option>
-            <option value="employee">Employee</option>
-            <option value="trainer">Trainer</option>
-            <option value="team_leader">Team Leader</option>
-            <option value="admin">Administrator</option>
-          </select>
-
-          <select
-            className="as-filter-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="assigned">Has Enrolled Courses</option>
-            <option value="unassigned">Needs Courses</option>
-            <option value="completed">All Courses Completed</option>
-          </select>
-        </div>
-
-        <div className="as-controls-right">
+      {/* Status tabs */}
+      <div className="ah-tabs" role="tablist" aria-label="Filter by enrollment status">
+        {tabs.map(t => (
           <button
-            className={`as-view-btn ${viewMode === 'grid' ? 'is-active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Interactive Grid Cards View"
-            aria-label="Grid View"
+            key={t.key}
+            role="tab"
+            className="ah-tab"
+            aria-selected={statusFilter === t.key}
+            onClick={() => setStatusFilter(t.key)}
           >
-            <LayoutGrid size={18} />
+            {t.label}
+            <span className="ah-count">{counts[t.key]}</span>
           </button>
-          <button
-            className={`as-view-btn ${viewMode === 'table' ? 'is-active' : ''}`}
-            onClick={() => setViewMode('table')}
-            title="Compact Table View"
-            aria-label="Table View"
-          >
-            <List size={18} />
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* 3. INTERACTIVE CARDS GRID VIEW */}
-      {viewMode === 'grid' && (
-        <div className="as-employee-grid">
-          {filteredUsers.map(user => {
-            const info = getUserAssignmentsInfo(user);
-            const isNudged = nudgedUsers[user.email];
+      {/* List */}
+      <div className="ah-list">
+        <div className="ah-head" aria-hidden="true">
+          <div>Employee</div>
+          <div>Role</div>
+          <div>Progress</div>
+          <div style={{ width: 92 }} />
+        </div>
 
-            return (
-              <div className="as-emp-card" key={user.email}>
-                {/* Employee Card Header */}
-                <div className="as-emp-head">
-                  <div
-                    className="as-emp-avatar"
-                    style={{ background: getAvatarGradient(user.name) }}
-                  >
-                    {getInitials(user.name)}
-                  </div>
-
-                  <div className="as-emp-details">
-                    <div className="as-emp-name-row">
-                      <h4 className="as-emp-name" title={user.name}>{user.name}</h4>
-                    </div>
-
-                    <div className="as-emp-email-wrap">
-                      <span className="as-emp-email">{user.email}</span>
-                      <button
-                        className="as-copy-btn"
-                        onClick={() => handleCopyEmail(user.email)}
-                        title="Copy Email"
-                      >
-                        {copiedEmail === user.email ? <Check size={12} style={{ color: '#10b981' }} /> : <Copy size={12} />}
-                      </button>
-                    </div>
-
-                    <div className="as-emp-badges">
-                      <span className={`as-pill as-pill--${user.role}`}>
-                        {roleLabel[user.role] || user.role}
-                      </span>
-                      <span className="as-pill as-pill--dept">
-                        {user.department || 'General'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Body: Enrolled Courses */}
-                <div className="as-emp-body">
-                  <div className="as-section-hdr">
-                    <span>Assigned Courses ({info.totalAssigned})</span>
-                    {info.totalAssigned > 0 && (
-                      <span style={{ color: info.avgProgress === 100 ? '#10b981' : '#a31555' }}>
-                        {info.avgProgress}% Overall
-                      </span>
-                    )}
-                  </div>
-
-                  {info.assigned.length > 0 ? (
-                    <div className="as-course-chips">
-                      {info.assigned.map(({ course, progressPercent, isCompleted }) => {
-                        const lockKey = `${user.email}-${course.id}`;
-                        const isProcessing = assigningMap[lockKey];
-
-                        return (
-                          <div className="as-course-chip" key={course.id}>
-                            <div className="as-course-chip-top">
-                              <div className="as-course-title-lbl" title={course.title}>
-                                <span style={{ fontWeight: 700, color: '#a31555', marginRight: '4px' }}>
-                                  {course.code || 'CRS'}:
-                                </span>
-                                {course.title}
-                              </div>
-                              <button
-                                className="as-unassign-btn"
-                                disabled={isProcessing}
-                                onClick={() => onToggleCourseAssignment(course.id, user.email)}
-                                title={`Unassign ${course.title}`}
-                              >
-                                {isProcessing ? <RotateCcw size={14} className="animate-spin" /> : <X size={14} />}
-                              </button>
-                            </div>
-
-                            <div className="as-mini-progress-bg">
-                              <div
-                                className={`as-mini-progress-fill ${isCompleted ? 'as-mini-progress-fill--completed' : ''}`}
-                                style={{ width: `${progressPercent}%` }}
-                              />
-                            </div>
-
-                            <div className="as-chip-foot">
-                              <span>
-                                {isCompleted ? (
-                                  <span style={{ color: '#10b981', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                    <CheckCircle2 size={12} /> Completed
-                                  </span>
-                                ) : progressPercent > 0 ? (
-                                  <span style={{ color: '#d97706', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                    <Clock size={12} /> In Progress ({progressPercent}%)
-                                  </span>
-                                ) : (
-                                  <span>Pending Start</span>
-                                )}
-                              </span>
-                              <span>{course.lessons?.length || 0} Lessons</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="as-empty-courses">
-                      No active courses assigned yet. Select a course below to enroll.
-                    </div>
-                  )}
-
-                  {/* Inline Quick Enroll Selector */}
-                  <div className="as-quick-assign-row">
-                    <select
-                      className="as-select"
-                      aria-label={`Enroll ${user.name} in a course`}
-                      defaultValue=""
-                      onChange={async (e) => {
-                        const courseId = e.target.value;
-                        if (courseId) {
-                          await onToggleCourseAssignment(courseId, user.email);
-                          e.target.value = '';
-                        }
-                      }}
-                    >
-                      <option value="">+ Enroll in a course...</option>
-                      {courses.map(c => {
-                        const isAlreadyAssigned = info.assigned.some(a => a.course.id === c.id);
-                        return (
-                          <option key={c.id} value={c.id}>
-                            {isAlreadyAssigned ? '✓ ' : ''}{c.code}: {c.title}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Card Footer Actions */}
-                <div className="as-card-foot">
-                  <button
-                    className="as-footer-btn"
-                    onClick={() => setQuickEnrollUser(user)}
-                  >
-                    <Plus size={14} /> Quick Catalog
-                  </button>
-
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      className="as-footer-btn"
-                      onClick={() => handleNudge(user.email)}
-                      title="Send learning reminder"
-                    >
-                      {isNudged ? <Check size={14} style={{ color: '#10b981' }} /> : <Send size={14} />}
-                      {isNudged ? 'Nudged!' : 'Nudge'}
-                    </button>
-
-                    <button
-                      className="as-footer-btn as-footer-btn--primary"
-                      onClick={() => setViewDetailsUser(user)}
-                      title="View Progress Details"
-                    >
-                      Details <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {filteredUsers.length === 0 && (
+        {filteredUsers.map(user => {
+          const info = infoOf(user);
+          const allDone = info.total > 0 && info.completed === info.total;
+          return (
             <div
-              className="as-card"
-              style={{
-                gridColumn: '1 / -1',
-                padding: '3rem 2rem',
-                textAlign: 'center',
-                color: '#6b7280'
-              }}
+              key={user.email}
+              className="ah-row"
+              onClick={() => openPanel(user.email)}
             >
-              <AlertCircle size={36} style={{ color: '#9ca3af', margin: '0 auto 0.75rem' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#111827' }}>No accounts found</h3>
-              <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                Try adjusting your search keywords or filter criteria.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 4. COMPACT TABLE VIEW */}
-      {viewMode === 'table' && (
-        <div className="as-card">
-          <div className="as-table-wrap">
-            <table className="as-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Department</th>
-                  <th>Role</th>
-                  <th>Assigned Courses & Progress</th>
-                  <th className="as-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map(user => {
-                  const info = getUserAssignmentsInfo(user);
-                  return (
-                    <tr key={user.email}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div
-                            className="as-emp-avatar"
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              fontSize: '0.85rem',
-                              borderRadius: '10px',
-                              background: getAvatarGradient(user.name)
-                            }}
-                          >
-                            {getInitials(user.name)}
-                          </div>
-                          <div>
-                            <div className="as-cell-name">{user.name}</div>
-                            <div className="as-cell-sub">{user.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="as-badge">{user.department || 'General'}</span>
-                      </td>
-                      <td>
-                        <span className={`as-badge as-badge--${user.role}`}>
-                          {roleLabel[user.role] || user.role}
-                        </span>
-                      </td>
-                      <td>
-                        {info.assigned.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxWidth: '320px' }}>
-                            {info.assigned.map(({ course, progressPercent, isCompleted }) => (
-                              <div
-                                key={course.id}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: '0.5rem',
-                                  fontSize: '0.785rem',
-                                  background: '#f9fafb',
-                                  padding: '3px 8px',
-                                  borderRadius: '6px',
-                                  border: '1px solid #e5e7eb'
-                                }}
-                              >
-                                <span style={{ fontWeight: 600, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {course.code}: {course.title}
-                                </span>
-                                <span style={{ fontWeight: 700, color: isCompleted ? '#10b981' : '#a31555' }}>
-                                  {progressPercent}%
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="as-cell-sub">No courses assigned</span>
-                        )}
-                      </td>
-                      <td className="as-right">
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                          <select
-                            className="as-select as-select--inline"
-                            aria-label={`Enroll ${user.name} in a course`}
-                            defaultValue=""
-                            onChange={async (e) => {
-                              const selectedCourseId = e.target.value;
-                              if (selectedCourseId) {
-                                await onToggleCourseAssignment(selectedCourseId, user.email);
-                                e.target.value = '';
-                              }
-                            }}
-                          >
-                            <option value="">Enroll course…</option>
-                            {courses.map(c => (
-                              <option key={c.id} value={c.id}>{c.code}: {c.title}</option>
-                            ))}
-                          </select>
-                          <button
-                            className="as-footer-btn"
-                            onClick={() => setQuickEnrollUser(user)}
-                            title="Catalog Modal"
-                          >
-                            Catalog
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredUsers.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="as-center as-cell-sub" style={{ padding: '2.5rem' }}>
-                      No accounts match your search criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 5. MODAL: QUICK CATALOG ENROLLMENT FOR SPECIFIC EMPLOYEE */}
-      {quickEnrollUser && (
-        <div className="as-assign-backdrop" onClick={() => setQuickEnrollUser(null)}>
-          <div className="as-assign-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="as-modal-hdr">
-              <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#111827' }}>
-                  Course Catalog for {quickEnrollUser.name}
-                </h3>
-                <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '2px' }}>
-                  Click any course to immediately assign or unassign it for this employee.
-                </p>
+              <div className="ah-person">
+                <div className="ah-avatar" style={{ background: avatarColor(user.name) }}>{getInitials(user.name)}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="ah-name">{user.name}</div>
+                  <div className="ah-sub">{user.email}</div>
+                </div>
               </div>
-              <button className="as-icon-btn" onClick={() => setQuickEnrollUser(null)}>
+
+              <div className="ah-role">
+                <div>{roleLabel[user.role] || user.role}</div>
+                <div className="ah-sub">{user.department || 'General'}</div>
+              </div>
+
+              {info.total > 0 ? (
+                <div className="ah-prog">
+                  <div className="ah-prog-top">
+                    <span>
+                      <strong>{info.completed}</strong> of {info.total} completed
+                      {info.overdue > 0 && <span className="ah-flag"> · {info.overdue} overdue</span>}
+                    </span>
+                    <strong>{info.avg}%</strong>
+                  </div>
+                  <div className="ah-bar-bg">
+                    <div className={`ah-bar-fill ${allDone ? 'ah-bar-fill--done' : ''}`} style={{ width: `${info.avg}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <span className="ah-none">No courses assigned</span>
+              )}
+
+              <button
+                className={`ah-btn ${info.total === 0 ? 'ah-btn--solid' : ''}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  openPanel(user.email);
+                }}
+              >
+                {info.total === 0 ? <><Plus size={14} /> Assign</> : 'Manage'}
+              </button>
+            </div>
+          );
+        })}
+
+        {filteredUsers.length === 0 && (
+          <div className="ah-empty">
+            <AlertCircle size={28} />
+            No employees match these filters. Try clearing the search or picking another tab.
+          </div>
+        )}
+      </div>
+
+      {/* Side panel: progress + course assignment in one place */}
+      {panelUser && panelInfo && (
+        <>
+          <div className="ah-scrim" onClick={() => setPanelEmail(null)} />
+          <aside className="ah-panel" role="dialog" aria-modal="true" aria-label={`Courses for ${panelUser.name}`}>
+            <div className="ah-panel-head">
+              <div className="ah-person">
+                <div className="ah-avatar" style={{ background: avatarColor(panelUser.name), width: 44, height: 44 }}>
+                  {getInitials(panelUser.name)}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="ah-name" style={{ fontSize: '1.05rem' }}>{panelUser.name}</div>
+                  <div className="ah-sub">
+                    {panelUser.email}{' '}
+                    <button className="ah-copy" onClick={() => copyEmail(panelUser.email)} aria-label="Copy email">
+                      {copiedEmail === panelUser.email ? <Check size={13} style={{ color: '#059669' }} /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                  <div className="ah-sub">
+                    {roleLabel[panelUser.role] || panelUser.role} · {panelUser.department || 'General'}
+                  </div>
+                </div>
+              </div>
+              <button className="ah-x" onClick={() => setPanelEmail(null)} aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
-            <div className="as-modal-body">
-              <div className="as-search" style={{ maxWidth: '100%' }}>
-                <Search size={15} />
-                <input
-                  type="text"
-                  className="as-input"
-                  placeholder="Filter available courses..."
-                  value={modalCourseSearch}
-                  onChange={(e) => setModalCourseSearch(e.target.value)}
-                />
+            <div className="ah-panel-body">
+              <div className="ah-stats">
+                <div className="ah-stat"><b>{panelInfo.total}</b><span>Enrolled</span></div>
+                <div className="ah-stat"><b style={{ color: 'var(--ah-ok)' }}>{panelInfo.completed}</b><span>Completed</span></div>
+                <div className="ah-stat"><b style={{ color: 'var(--ah-accent)' }}>{panelInfo.avg}%</b><span>Avg progress</span></div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {courses
-                  .filter(c => q(c.title).includes(q(modalCourseSearch)) || q(c.code || '').includes(q(modalCourseSearch)))
-                  .map(course => {
-                    const info = getUserAssignmentsInfo(quickEnrollUser);
-                    const isEnrolled = info.assigned.some(a => a.course.id === course.id);
-                    const lockKey = `${quickEnrollUser.email}-${course.id}`;
-                    const isProcessing = assigningMap[lockKey];
+              <div>
+                <h4 className="ah-h">Courses</h4>
+                <div className="ah-search" style={{ margin: '0.6rem 0 0.4rem' }}>
+                  <Search size={16} />
+                  <input
+                    className="ah-field"
+                    type="text"
+                    placeholder="Filter courses"
+                    aria-label="Filter courses"
+                    value={courseSearch}
+                    onChange={e => setCourseSearch(e.target.value)}
+                  />
+                </div>
 
-                    return (
-                      <div className="as-modal-course-item" key={course.id}>
-                        <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontWeight: 700, color: '#a31555', fontSize: '0.85rem' }}>
-                              {course.code || 'CRS'}
-                            </span>
-                            <span className="as-badge">{course.category}</span>
-                            {course.level && (
-                              <span className="as-badge">{course.level}</span>
-                            )}
-                          </div>
-                          <div style={{ fontWeight: 600, color: '#111827', fontSize: '0.95rem', marginTop: '2px' }}>
-                            {course.title}
-                          </div>
-                          <div style={{ fontSize: '0.785rem', color: '#6b7280', marginTop: '2px' }}>
-                            {course.lessons?.length || 0} Lessons • {course.quiz?.length || 0} Quiz Questions
-                          </div>
+                {panelCourses.map(course => {
+                  const item = panelInfo.assigned.find(a => a.course.id === course.id);
+                  const enrolled = Boolean(item);
+                  const busy = assigningMap[`${panelUser.email}-${course.id}`];
+                  const lessonTotal = course.lessons?.length || 0;
+                  const lessonsDone = item?.prog?.completedLessons?.length || 0;
+
+                  return (
+                    <div className="ah-course" key={course.id}>
+                      <div className="ah-course-main">
+                        <div className="ah-course-title" title={course.title}>
+                          <span>{course.code || 'CRS'}</span>
+                          {course.title}
                         </div>
-
-                        <button
-                          className={`as-btn ${isEnrolled ? 'as-btn--secondary' : 'as-btn--primary'}`}
-                          disabled={isProcessing}
-                          onClick={() => onToggleCourseAssignment(course.id, quickEnrollUser.email)}
-                          style={{ minWidth: '105px' }}
-                        >
-                          {isProcessing ? (
-                            <RotateCcw size={14} className="animate-spin" />
-                          ) : isEnrolled ? (
-                            <>
-                              <Check size={14} style={{ color: '#10b981' }} /> Enrolled
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={14} /> Enroll
-                            </>
-                          )}
-                        </button>
+                        {item ? (
+                          <>
+                            <div className="ah-bar-bg">
+                              <div
+                                className={`ah-bar-fill ${item.isCompleted ? 'ah-bar-fill--done' : ''}`}
+                                style={{ width: `${item.progressPercent}%` }}
+                              />
+                            </div>
+                            <div className="ah-course-meta">
+                              {item.isCompleted ? 'Completed' : `${item.progressPercent}% complete`}
+                              {lessonTotal > 0 && ` · ${lessonsDone}/${lessonTotal} lessons`}
+                              {item.prog?.quizScore !== undefined && ` · Quiz ${item.prog.quizScore}%`}
+                              {item.overdue && !item.isCompleted && <span className="ah-flag"> · Overdue</span>}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="ah-course-meta">
+                            {[course.category, course.level, lessonTotal > 0 ? `${lessonTotal} lessons` : null]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
+
+                      <button
+                        className={`ah-btn ${enrolled ? '' : 'ah-btn--solid'}`}
+                        style={{ minWidth: 96 }}
+                        disabled={busy}
+                        onClick={() => toggleAssignment(course.id, panelUser.email)}
+                        aria-label={`${enrolled ? 'Unassign' : 'Assign'} ${course.title}`}
+                      >
+                        {busy ? (
+                          <RotateCcw size={14} className="ah-spin" />
+                        ) : enrolled ? (
+                          'Unassign'
+                        ) : (
+                          <><Plus size={14} /> Assign</>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {panelCourses.length === 0 && <div className="ah-empty">No courses match your filter.</div>}
               </div>
             </div>
-          </div>
-        </div>
+          </aside>
+        </>
       )}
-
-      {/* 6. MODAL: EMPLOYEE PROGRESS & DETAILS */}
-      {viewDetailsUser && (() => {
-        const info = getUserAssignmentsInfo(viewDetailsUser);
-
-        return (
-          <div className="as-assign-backdrop" onClick={() => setViewDetailsUser(null)}>
-            <div className="as-assign-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="as-modal-hdr">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                  <div
-                    className="as-emp-avatar"
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      fontSize: '1rem',
-                      borderRadius: '12px',
-                      background: getAvatarGradient(viewDetailsUser.name)
-                    }}
-                  >
-                    {getInitials(viewDetailsUser.name)}
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#111827' }}>
-                      {viewDetailsUser.name}
-                    </h3>
-                    <p style={{ fontSize: '0.8125rem', color: '#6b7280' }}>
-                      {viewDetailsUser.email} • {viewDetailsUser.department || 'General'}
-                    </p>
-                  </div>
-                </div>
-                <button className="as-icon-btn" onClick={() => setViewDetailsUser(null)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="as-modal-body">
-                {/* Employee Stats Overview */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', background: '#f9fafb', padding: '1rem', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>ENROLLED COURSES</div>
-                    <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#111827', marginTop: '2px' }}>{info.totalAssigned}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>COMPLETED</div>
-                    <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#10b981', marginTop: '2px' }}>{info.completedCount}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>AVG PROGRESS</div>
-                    <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#a31555', marginTop: '2px' }}>{info.avgProgress}%</div>
-                  </div>
-                </div>
-
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#374151', marginTop: '0.5rem' }}>
-                  Detailed Course Progress
-                </h4>
-
-                {info.assigned.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {info.assigned.map(({ course, prog, progressPercent, isCompleted }) => (
-                      <div key={course.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1rem', background: '#ffffff' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <span style={{ fontWeight: 700, color: '#a31555', fontSize: '0.85rem' }}>{course.code}: </span>
-                            <span style={{ fontWeight: 600, color: '#111827' }}>{course.title}</span>
-                          </div>
-                          <span style={{ fontWeight: 700, color: isCompleted ? '#10b981' : '#a31555' }}>
-                            {progressPercent}% Complete
-                          </span>
-                        </div>
-
-                        <div className="as-mini-progress-bg" style={{ marginTop: '0.6rem', height: '6px' }}>
-                          <div
-                            className={`as-mini-progress-fill ${isCompleted ? 'as-mini-progress-fill--completed' : ''}`}
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.6rem', fontSize: '0.785rem', color: '#6b7280' }}>
-                          <span>Completed Lessons: {prog?.completedLessons?.length || 0} / {course.lessons?.length || 0}</span>
-                          {prog?.quizScore !== undefined && (
-                            <span>Quiz Score: <strong>{prog.quizScore}%</strong></span>
-                          )}
-                          {prog?.learningHours !== undefined && (
-                            <span>Learning Hours: <strong>{prog.learningHours}h</strong></span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="as-empty-courses">
-                    This employee currently has no courses assigned.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 };
