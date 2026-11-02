@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Award,
   LogOut,
   CheckCircle, Menu,
-  Download,
   Folder,
   Grid2X2,
   List
@@ -15,6 +13,8 @@ import { LoadingModal } from './LoadingModal';
 import { CourseStudyView } from './courses/CourseStudyView';
 import { CourseCard } from './courses/CourseCard';
 import { CertificateView } from './courses/CertificateView';
+import { CompletionCelebration } from './courses/CompletionCelebration';
+import { EarnedCertificates } from './courses/EarnedCertificates';
 import { LearningPathView } from './courses/LearningPathView';
 import { SkillsDashboard } from './courses/SkillsDashboard';
 import { Sidebar } from './Sidebar';
@@ -25,6 +25,7 @@ import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
 import { KnowledgeHubView } from './koruna/KnowledgeHubView';
 import { can, canManageCourse, safeTab } from '../services/authorization';
 import { learningPathService } from '../services/learningPaths';
+import { isCourseAssigned } from '../services/courseAccess';
 import { missingPrerequisites } from '../services/learningPathRules';
 
 interface DashboardViewProps {
@@ -115,6 +116,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [studyingCourse, setStudyingCourseState] = useState<Course | null>(null);
 
   const setStudyingCourse = (course: Course | null) => {
+    if (course && !canManageCourse(userSession.role, userSession.id, course.createdBy) && !isAssignedToCurrentUser(course)) {
+      showToast('This course has not been assigned to you.');
+      return;
+    }
     setStudyingCourseState(course);
     try {
       if (course) {
@@ -221,7 +226,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const savedCourseId = localStorage.getItem('koruna_studying_course_id');
         if (savedCourseId) {
           const found = loadedCourses.find(c => c.id === savedCourseId);
-          if (found) {
+          if (found && (canManageCourse(userSession.role, userSession.id, found.createdBy) || isAssignedToCurrentUser(found, loadedProgress, loadedUsers))) {
             setStudyingCourseState(found);
           }
         }
@@ -371,6 +376,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const currentUserProgress = userProgress.filter((progress) => (
     !progress.userEmail || progress.userEmail.toLowerCase().trim() === activeUserEmail
   ));
+  function isAssignedToCurrentUser(course: Course, progress = userProgress, accounts = users) {
+    const account = accounts.find(user => user.email.trim().toLowerCase() === userSession.email.trim().toLowerCase());
+    return isCourseAssigned(course, [userSession.email, userSession.id || '', account?.id || '', String(account?.userId || '')], progress);
+  }
+  const catalogueSections = [
+    { title: 'Assigned Courses', courses: filteredCourses.filter(course => isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) },
+    { title: 'Done Courses', courses: filteredCourses.filter(course => currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) },
+    { title: 'All Courses ? Not Assigned', courses: filteredCourses.filter(course => !isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) }
+  ];
   const assignedCourseCount = currentUserProgress.length;
   const completedProgress = currentUserProgress.filter((progress) => progress.progressPercent >= 100);
   const completedCourseCount = completedProgress.length;
@@ -467,14 +481,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleStartStudy = async (course: Course, applicationId?: number) => {
     try {
       const progressList = await dbService.getUserProgress(userSession.email);
+      const existing = progressList.find(p => p.courseId === course.id &&
+        (applicationId === undefined || (p.applicationId || 0) === applicationId));
+      if (existing && existing.progressPercent >= 100) {
+        setStudyingCourse(null);
+        setStudyingAssignmentId(null);
+        setQuizSubmitted(false);
+        setViewingCertificate(null);
+        handleTabChange('catalog_courses');
+        return;
+      }
+      if (!isAssignedToCurrentUser(course, progressList)) {
+        showToast('This course has not been assigned to you.');
+        return;
+      }
       const prerequisites = await learningPathService.prerequisites();
       const missing = missingPrerequisites(course.id,prerequisites,progressList);
       if (missing.length) {
         showToast(`Complete these courses first: ${missing.map(id => courses.find(c => c.id === id)?.title || id).join(', ')}.`);
         return;
       }
-      const existing = progressList.find(p => p.courseId === course.id &&
-        (applicationId === undefined || (p.applicationId || 0) === applicationId));
       const prog: UserProgress = existing || {
         userEmail: userSession.email.toLowerCase(), courseId: course.id,
         applicationId: applicationId || 0, progressPercent: 0, completedLessons: [],
@@ -494,6 +520,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       console.error('Unable to start course:', err);
       showToast(err instanceof Error ? err.message : 'Unable to save course progress. Please try again.');
     }
+  };
+
+  const returnToCourseCatalogue = () => {
+    setStudyingCourse(null);
+    setStudyingAssignmentId(null);
+    setQuizSubmitted(false);
+    setViewingCertificate(null);
+    handleTabChange('catalog_courses');
   };
 
   const handleMarkLessonComplete = async (lessonId: string) => {
@@ -603,26 +637,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const prog = progressList.find(p => p.courseId === studyingCourse.id && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
       if (!prog) throw new Error('Missing course progress');
       if (prog) {
+        const wasCompleted = prog.progressPercent === 100;
         prog.quizAttempts += 1;
         prog.quizScore = Math.max(prog.quizScore || 0, score);
 
         // Re-calculate overall course progress percentage
         const totalLessons = studyingCourse.lessons.length;
         const completedCount = prog.completedLessons.length;
-        let calculatedProgress = Math.round((completedCount / totalLessons) * 70);
+        let calculatedProgress = totalLessons > 0
+          ? Math.round((completedCount / totalLessons) * 70)
+          : 70;
 
         if (prog.quizScore >= threshold) {
           calculatedProgress += 30;
-          // If there's no practical assessment required (default c2 compliance has none, c1 underwriting has one)
-          if (studyingCourse.id === 'c2') {
-            prog.progressPercent = 100;
-          } else {
-            prog.progressPercent = Math.min(calculatedProgress, 90); // Practical gets them to 100
-          }
+          prog.progressPercent = Math.min(calculatedProgress, 100);
         } else {
           prog.progressPercent = Math.min(calculatedProgress, 70);
         }
 
+        // Retaking a quiz must not undo an already completed course.
+        if (wasCompleted) prog.progressPercent = 100;
         prog.learningHours = calculateCourseLearningHours(studyingCourse, prog.progressPercent);
 
         await dbService.saveUserProgress(prog);
@@ -997,20 +1031,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               boxShadow: '0 24px 60px rgba(15, 23, 42, 0.24)'
             }}
           >
-            <div style={{
-              width: '64px',
-              height: '64px',
-              margin: '0 auto 1rem',
-              borderRadius: '50%',
-              background: '#dcfce7',
-              color: '#15803d',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 24px rgba(22, 163, 74, 0.18)'
-            }}>
-              <Award size={34} />
-            </div>
+            <CompletionCelebration />
             <h2 id="course-complete-title" style={{
               margin: '0 0 0.5rem',
               color: '#14532d',
@@ -1128,6 +1149,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           isImmersivePlayer ? (
             <div style={{ padding: '2rem 2.5rem 3rem 2.5rem' }}>
               <CourseStudyView
+                key={studyingCourse.id}
+                onReturnToCatalogue={returnToCourseCatalogue}
                 studyingCourse={studyingCourse}
                 activeLessonIdx={activeLessonIdx}
                 setActiveLessonIdx={setActiveLessonIdx}
@@ -1159,6 +1182,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           ) : (
             <CourseStudyView
+                key={studyingCourse.id}
+                onReturnToCatalogue={returnToCourseCatalogue}
               studyingCourse={studyingCourse}
               activeLessonIdx={activeLessonIdx}
               setActiveLessonIdx={setActiveLessonIdx}
@@ -1307,12 +1332,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
+                {catalogueSections.map(section => (
+                  <section key={section.title} style={{ marginBottom: '2rem' }}>
+                    <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>{section.title} ({section.courses.length})</h2>
                 <div style={{ display: catalogueView === 'grid' ? 'grid' : 'flex', flexDirection: catalogueView === 'grid' ? undefined : 'column', gridTemplateColumns: catalogueView === 'grid' ? 'repeat(auto-fill, minmax(280px, 1fr))' : undefined, gap: catalogueView === 'grid' ? '1.5rem' : '0.75rem' }}>
-                  {filteredCourses.length > 0 ? (
-                    filteredCourses.map((c) => {
-                      const prog = userProgress.find(p => p.courseId === c.id);
+                  {section.courses.length > 0 ? (
+                    section.courses.map((c) => {
+                      const prog = currentUserProgress.find(p => p.courseId === c.id);
                       const isEnrolled = !!prog;
-                      const isAssigned = !!prog?.dueDate;
+                      const isAssigned = isAssignedToCurrentUser(c);
                       if (catalogueView === 'list') {
                         const progress = prog?.progressPercent ?? 0;
                         return (
@@ -1326,7 +1354,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}><div style={{ height: '100%', width: `${progress}%`, background: progress === 100 ? '#16a34a' : '#a31555' }} /></div>
                               <div style={{ marginTop: '0.3rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>{progress}% complete</div>
                             </div>
-                            <button type="button" className={progress > 0 && progress < 100 ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} style={{ minWidth: '100px' }} onClick={() => handleStartStudy(c)}>{progress === 100 ? 'Review' : progress > 0 ? 'Continue' : 'Start'}</button>
+                            <button type="button" className={progress > 0 && progress < 100 ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} style={{ minWidth: '100px', opacity: isAssigned ? 1 : 0.55 }} disabled={!isAssigned} onClick={() => handleStartStudy(c)}>{!isAssigned ? 'Not Assigned' : progress === 100 ? 'Review' : progress > 0 ? 'Continue' : 'Start'}</button>
                           </article>
                         );
                       }
@@ -1337,6 +1365,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           variant="catalogue"
                           isEnrolled={isEnrolled}
                           isAssigned={isAssigned}
+                          actionDisabled={!isAssigned}
                           percent={prog ? prog.progressPercent : 0}
                           isOverdue={prog ? prog.overdue : false}
                           onActionClick={() => handleStartStudy(c)}
@@ -1345,10 +1374,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     })
                   ) : (
                     <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--koruna-text-muted)' }}>
-                      No courses found matching your query.
+                      No courses in this list match your filters.
                     </div>
                   )}
                 </div>
+                  </section>
+                ))}
               </div>
             )}
 
@@ -1438,48 +1469,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 5: MY CERTIFICATES */}
             {activeTab === 'certificates' && (
-              <div className="koruna-subview-wrapper">
-                <h2 className="koruna-section-title" style={{ marginBottom: '1.5rem' }}>My Earned Certificates</h2>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                  {userProgress
-                    .filter(p => {
-                      const course = courses.find(c => c.id === p.courseId);
-                      return p.progressPercent === 100 && course?.requiresCertification !== false;
-                    })
-                    .map((p) => {
-                      const course = courses.find(c => c.id === p.courseId);
-                      if (!course) return null;
-                      const cert = getCertData(p.courseId);
-                      return (
-                        <div key={p.courseId} style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', boxShadow: 'var(--koruna-card-shadow)', background: '#ffffff' }}>
-                          <Award size={36} style={{ color: 'var(--koruna-primary)' }} />
-                          <div>
-                            <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--koruna-text-dark)', marginBottom: '0.25rem' }}>{course.title}</h4>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--koruna-text-muted)' }}>Issued: {cert.date} • ID: {cert.id}</p>
-                          </div>
-                          <div style={{ marginTop: 'auto', display: 'flex', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--koruna-border-color)' }}>
-                            <button
-                              className="btn-koruna-outline"
-                              style={{ flex: 1, padding: '0.4rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                              onClick={() => setViewingCertificate({ course, date: cert.date, id: cert.id })}
-                            >
-                              <Download size={14} /> View Certificate
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {userProgress.filter(p => {
-                    const course = courses.find(c => c.id === p.courseId);
-                    return p.progressPercent === 100 && course?.requiresCertification !== false;
-                  }).length === 0 && (
-                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem', color: 'var(--koruna-text-muted)' }}>
-                      Complete your enrolled training courses to earn official certificates.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <EarnedCertificates
+                courses={courses}
+                progress={userProgress}
+                learnerName={userSession.name}
+                onBrowse={() => handleTabChange('catalog_courses')}
+                onView={(course) => {
+                  const cert = getCertData(course.id);
+                  setViewingCertificate({ course, date: cert.date, id: cert.id });
+                }}
+              />
             )}
 
             {/* TAB 6: SKILLS DASHBOARD */}

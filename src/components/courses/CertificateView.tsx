@@ -290,29 +290,15 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
           </span>
         </div>
 
-        {/* 4. Certificate Number Overlay */}
-        <div style={{
+        {/* Cover the certificate-number label embedded in the template. */}
+        <div aria-hidden="true" style={{
           position: 'absolute',
-          top: '82.5%',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          top: '81%',
+          left: '36%',
           width: '28%',
-          textAlign: 'center',
-          background: '#ffffff',
-          padding: '0.1rem 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{
-            fontSize: 'clamp(0.75rem, 1.3vw, 0.95rem)',
-            fontWeight: 700,
-            color: '#111827',
-            fontFamily: 'Inter, system-ui, sans-serif'
-          }}>
-            {displayCertificateId}
-          </span>
-        </div>
+          height: '13%',
+          background: '#ffffff'
+        }} />
 
         {/* 5. Completion Date Overlay */}
         <div style={{

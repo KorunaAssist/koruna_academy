@@ -298,6 +298,7 @@ interface CourseCardProps {
   onDeleteClick?: () => void;
   isEnrolled?: boolean;
   isAssigned?: boolean;
+  actionDisabled?: boolean;
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
@@ -309,7 +310,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   applicationId = null,
   onActionClick,
   onEditClick,
-  onDeleteClick
+  onDeleteClick,
+  actionDisabled = false
 }) => {
   const formattedDueDate = React.useMemo(() => {
     if (!dueDate) return null;
@@ -579,8 +581,10 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         <button
           className={isSolidButton ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'}
           onClick={onActionClick}
+          disabled={actionDisabled}
+          style={actionDisabled ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
         >
-          {buttonText}
+          {actionDisabled ? 'Not Assigned' : buttonText}
         </button>
       </div>
     );

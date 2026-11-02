@@ -1,0 +1,7 @@
+.completion-celebration { width: 240px; max-width: 100%; margin: 0 auto; pointer-events: none; }
+.completion-celebration svg { display: block; width: 100%; height: auto; overflow: visible; }
+.completion-mascot { transform-origin: 120px 150px; animation: completion-hop 700ms ease-in-out 4; }
+.completion-confetti { transform-origin: 120px 80px; animation: completion-sparkle 950ms ease-in-out 3; }
+@keyframes completion-hop { 0%, 100% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-12px) rotate(-4deg); } 70% { transform: translateY(-5px) rotate(3deg); } }
+@keyframes completion-sparkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.88) rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) { .completion-mascot, .completion-confetti { animation: none; } }

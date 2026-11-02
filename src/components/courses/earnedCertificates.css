@@ -1,0 +1,52 @@
+.earned-page { max-width: 1280px; margin: 0 auto; color: #252333; }
+.earned-hero { display: flex; justify-content: space-between; align-items: center; gap: 32px; padding: 38px 44px; background: linear-gradient(115deg,#fff1f6,#fff8fa 65%,#fce5f0); border: 1px solid #f5dce6; border-radius: 24px; position: relative; overflow: hidden; }
+.earned-hero-copy { max-width: 610px; }
+.earned-eyebrow { display: flex; align-items: center; gap: 8px; color: #a61b55; font-size: 11px; font-weight: 800; letter-spacing: 1.6px; }
+.earned-hero h2 { font-size: clamp(25px,3vw,36px); letter-spacing: -1.1px; margin: 13px 0; line-height: 1.2; }
+.earned-hero p { color: #766675; font-size: 14px; line-height: 1.8; margin: 0 0 22px; max-width: 470px; }
+.earned-browse { background: #b8185c; border: 1px solid #b8185c; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 11px 17px; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.earned-total { min-width: 185px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.earned-medal { color: #b8185c; display: grid; place-items: center; width: 78px; height: 78px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 9px #ffffff60,0 8px 25px #b8185c12; margin-bottom: 9px; transform: rotate(-8deg); }
+.earned-total strong { font-size: 32px; line-height: 1.1; color: #831843; }
+.earned-total > span { color: #8c5370; font-size: 12px; }
+.earned-collection { padding: 32px 0; }
+.earned-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 23px; }
+.earned-section-heading h3 { margin: 0 0 6px; font-size: 19px; letter-spacing: -.35px; }
+.earned-section-heading p { margin: 0; color: #85808c; font-size: 13px; }
+.earned-count { font-size: 12px; font-weight: 600; background: #f7f2f5; border: 1px solid #eee6eb; padding: 7px 12px; border-radius: 30px; white-space: nowrap; color: #796471; }
+.earned-toolbar { display: flex; gap: 12px; }
+.earned-search,.earned-select { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e5e2e8; border-radius: 10px; padding: 0 13px; color: #918997; }
+.earned-search { flex: 1; }
+.earned-search input { border: 0; background: transparent; padding: 13px 0; width: 100%; min-width: 0; color: #403747; font: inherit; font-size: 13px; outline: none; }
+.earned-search:focus-within,.earned-select:focus-within { outline: 2px solid #b8185c; outline-offset: 2px; }
+.earned-select select { border: 0; background: transparent; max-width: 200px; padding: 12px 0; color: #665a6b; font-size: 13px; }
+.earned-sort { padding: 10px 12px; border: 1px solid #e5e2e8; border-radius: 10px; color: #665a6b; background: #fff; }
+.earned-results { color: #928896; font-size: 12px; margin: 17px 0; }
+.earned-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,290px),1fr)); gap: 22px; }
+.earned-card { background: white; border: 1px solid #eae5eb; border-radius: 16px; overflow: hidden; transition: box-shadow .2s,transform .2s; }
+.earned-card:hover { box-shadow: 0 12px 30px #54213d0d; transform: translateY(-3px); }
+.earned-preview { width: 100%; border: 0; padding: 26px 30px; background: radial-gradient(ellipse at top,#f9e9f2,#f4eff4); display: grid; place-items: center; position: relative; cursor: pointer; }
+.earned-paper { width: 100%; max-width: 285px; aspect-ratio: 1.65; background: white; border: 5px double #ecdbe4; box-shadow: 0 7px 20px #71334d12; padding: 13px; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #a91b55; gap: 5px; transform: rotate(-3deg); }
+.earned-paper > span { font-size: 6px; letter-spacing: 2px; font-weight: 800; }
+.earned-paper > strong { font: 600 12px Georgia,serif; color: #40333b; }
+.earned-paper small { font-size: 5px; color: #9a8793; letter-spacing: 1px; }
+.earned-paper b { font: italic 15px Georgia,serif; text-align: center; }
+.earned-paper i { font-size: 6px; color: #857080; text-align: center; max-width: 95%; }
+.earned-paper-line { height: 1px; background: #eee0e8; width: 60%; margin-top: 3px; }
+.earned-preview-action { position: absolute; inset: auto 0 0; background: #831843ed; color: #fff; padding: 8px; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 12px; opacity: 0; transition: opacity .2s; }
+.earned-preview:hover .earned-preview-action,.earned-preview:focus-visible .earned-preview-action { opacity: 1; }
+.earned-card-body { padding: 22px; }
+.earned-card-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; color: #9b4270; }
+.earned-card-meta > span:first-child { text-transform: uppercase; letter-spacing: .7px; font-weight: 700; }
+.earned-complete { display: inline-flex; gap: 4px; align-items: center; color: #21815c; background: #eefaf3; padding: 4px 7px; border-radius: 20px; }
+.earned-card h4 { font-size: 17px; line-height: 1.5; margin: 13px 0 7px; }
+.earned-card-body > p { color: #918594; font-size: 12px; margin: 0 0 22px; }
+.earned-view { display: flex; width: 100%; align-items: center; justify-content: space-between; color: #a91b55; border: 1px solid #eed5e0; background: #fffafb; border-radius: 9px; padding: 11px 13px; cursor: pointer; font-weight: 700; font-size: 12px; }
+.earned-view:hover,.earned-browse:hover { filter: brightness(.96); }
+.earned-empty { padding: 50px 20px; text-align: center; border: 1px dashed #e6d4df; background: #fffcfd; border-radius: 16px; }
+.earned-empty > div { color: #b8185c; margin-bottom: 14px; }
+.earned-empty h3 { margin: 0 0 10px; font-size: 20px; }
+.earned-empty p { max-width: 420px; margin: 0 auto 22px; line-height: 1.7; color: #857080; font-size: 14px; }
+@media(max-width:700px) { .earned-hero { padding: 26px; gap: 22px; align-items: flex-start; } .earned-total { min-width: 90px; } .earned-medal { width: 56px; height: 56px; } .earned-toolbar { flex-wrap: wrap; } .earned-search { flex-basis: 100%; } .earned-select { flex: 1; } .earned-select select { width: 100%; } .earned-count { display: none; } }
+@media(max-width:450px) { .earned-hero { flex-direction: column; } .earned-total { flex-direction: row; gap: 12px; text-align: left; } .earned-medal { display: none; } .earned-total strong { font-size: 25px; } }
+@media(prefers-reduced-motion:reduce) { .earned-card,.earned-preview-action { transition: none; } .earned-card:hover { transform: none; } }

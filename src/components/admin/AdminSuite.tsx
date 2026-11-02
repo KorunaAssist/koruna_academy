@@ -24,6 +24,7 @@ import { CourseCard } from '../courses/CourseCard';
 import { canAccessAdminTab } from '../../services/authorization';
 import { LearningPathsManager } from './LearningPathsManager';
 import { SkillsManager } from './SkillsManager';
+import { KnowledgeHubManagerView } from './KnowledgeHubManagerView';
 interface AdminSuiteProps {
   userSession: UserSessionData;
   userPerms?: RolePermissions['permissions'];

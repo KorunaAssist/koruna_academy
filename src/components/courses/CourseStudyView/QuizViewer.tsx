@@ -3,6 +3,7 @@ import { Award, AlertTriangle, RotateCcw, BookOpen, AlarmClock, CheckCircle2 } f
 import type { Course, SystemSettings } from '../../../services/db';
 import type { UserSessionData } from '../../../services/auth';
 import { CertificateView } from '../CertificateView';
+import { CompletionCelebration } from '../CompletionCelebration';
 
 interface QuizViewerProps {
   studyingCourse: Course;
@@ -62,6 +63,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
   const passingThreshold = settings.quizPassingThreshold;
 
   const [currentQ, setCurrentQ] = useState(0);
+  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
   const totalSeconds = getTimerSeconds(quiz?.length ?? 0);
   const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -97,6 +99,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
     setQuizAnswers({});
     if (setQuizTextAnswers) setQuizTextAnswers({});
     setQuizSubmitted(false);
+    setCelebrationDismissed(false);
     setCurrentQ(0);
     setTimeLeft(totalSeconds);
     startTimer();
@@ -127,13 +130,25 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
 
   /* ─── RESULTS VIEW ─── */
   if (quizSubmitted) {
+    if (quizPassed && studyingCourse.requiresCertification !== false && !celebrationDismissed) {
+      return (
+        <div className="koruna-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quiz-celebration-title">
+          <div style={{ width: 'min(460px, calc(100vw - 2rem))', padding: '2rem', borderRadius: '20px', background: '#fff', textAlign: 'center', boxShadow: '0 24px 60px #0f172a3d' }}>
+            <CompletionCelebration />
+            <h2 id="quiz-celebration-title" style={{ color: '#831843' }}>Congratulations!</h2>
+            <p style={{ color: '#475569', lineHeight: 1.6 }}>You passed the quiz for <strong>{studyingCourse.title}</strong> with a score of <strong>{quizScore}%</strong>. Great work!</p>
+            <button type="button" autoFocus onClick={() => setCelebrationDismissed(true)} style={{ background: '#be185d', color: '#fff', padding: '0.85rem 1.5rem', border: 0, borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>View certificate</button>
+          </div>
+        </div>
+      );
+    }
     if (quizPassed && studyingCourse.requiresCertification !== false) {
       return (
         <CertificateView
           course={studyingCourse}
           userSession={userSession || { name: 'Valued Learner', email: '', role: 'employee' }}
           trainerName={studyingCourse.trainer}
-          onBack={() => setActiveLessonIdx(0)}
+          onBack={onDone || (() => setStudyingCourse?.(null))}
           onDone={onDone || (() => { if (setStudyingCourse) setStudyingCourse(null); else setActiveLessonIdx(0); })}
           showToast={showToast}
         />
@@ -156,18 +171,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
             textAlign: 'center',
             gap: '1.15rem'
           }}>
-            <div style={{
-              background: '#dcfce7',
-              color: '#15803d',
-              padding: '1.25rem',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(22,163,74,0.15)'
-            }}>
-              <CheckCircle2 size={48} />
-            </div>
+            <CompletionCelebration />
 
             <div>
               <h3 id="quiz-complete-title" style={{ fontSize: '1.5rem', fontWeight: 800, color: '#14532d', margin: '0 0 0.35rem 0' }}>
