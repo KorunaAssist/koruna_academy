@@ -16,6 +16,7 @@ import { CourseStudyView } from './courses/CourseStudyView';
 import { CourseCard } from './courses/CourseCard';
 import { CertificateView } from './courses/CertificateView';
 import { LearningPathView } from './courses/LearningPathView';
+import { SkillsDashboard } from './courses/SkillsDashboard';
 import { Sidebar } from './Sidebar';
 import { Header, HeaderActions } from './Header';
 import { UnderDevelopment } from './UnderDevelopment';
@@ -146,7 +147,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [assignedUserEmails, setAssignedUserEmails] = useState<string[]>([]);
   const getDefaultAssignmentDueDate = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const [assignmentDueDate, setAssignmentDueDate] = useState<string>(() => getDefaultAssignmentDueDate());
-  const [courseForm, setCourseForm] = useState({
+  const [courseForm, setCourseForm] = useState<Omit<Course, 'id' | 'createdBy' | 'rating' | 'lessons'>>({
     title: '',
     category: 'Mortgage',
     code: '',
@@ -251,7 +252,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     // Subscribe to realtime course updates (Supabase Postgres Realtime + Cross-tab Pub/Sub)
     const unsubscribe = dbService.subscribeToCourses((updatedCourses) => {
-      setCourses(updatedCourses);
+      // Polling returns fresh objects even when the catalogue has not changed.
+      // Preserve the array reference so dependent views do not reload every poll.
+      setCourses(previous => JSON.stringify(previous) === JSON.stringify(updatedCourses) ? previous : updatedCourses);
 
       setStudyingCourseState((prev) => {
         if (!prev) return null;
@@ -761,7 +764,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         contentType: courseForm.contentType,
         requiresCertification: courseForm.requiresCertification,
         documentContent: courseForm.documentContent,
-        acknowledgmentText: courseForm.acknowledgmentText
+        acknowledgmentText: courseForm.acknowledgmentText,
+        skillIds: isDocument ? [] : courseForm.skillIds || []
       });
 
     } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to save the course.'); return; }
@@ -829,7 +833,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       contentType: course.contentType || 'course',
       requiresCertification: course.requiresCertification !== undefined ? course.requiresCertification : true,
       documentContent: course.documentContent || '',
-      acknowledgmentText: course.acknowledgmentText || 'I have read, understood, and agree to the policies and terms outlined in this document.'
+      acknowledgmentText: course.acknowledgmentText || 'I have read, understood, and agree to the policies and terms outlined in this document.',
+      skillIds: course.skillIds || []
     });
     setCourseLessons(course.lessons.map(l => ({ ...l })));
     setCourseQuiz(course.quiz || []);
@@ -1479,41 +1484,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 6: SKILLS DASHBOARD */}
             {activeTab === 'skills' && (
-              <div className="koruna-subview-wrapper">
-                <h2 className="koruna-section-title" style={{ marginBottom: '1rem' }}>Enterprise Competency & Skills Inventory</h2>
-                <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
-                  Your skill scores mapped from completed course lessons, trainer assessments, and practical drills.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {courses.length > 0 ? (
-                    courses.map((course, i) => {
-                      const prog = userProgress.find(p => p.courseId === course.id);
-                      const palette = ['var(--koruna-primary)', '#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b'];
-                      const itemColor = palette[i % palette.length];
-                      const val = prog?.progressPercent || 0;
-                      return (
-                        <div key={course.id} style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#ffffff' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <h4 style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--koruna-text-dark)' }}>{course.title}</h4>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>{course.category}</span>
-                            </div>
-                            <span style={{ fontWeight: 800, color: val > 0 ? itemColor : '#a1a1aa', fontSize: '1.1rem' }}>{val}%</span>
-                          </div>
-                          <div style={{ height: '8px', backgroundColor: '#e4e4e7', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${val}%`, backgroundColor: itemColor, borderRadius: '4px', transition: 'width 0.3s ease' }}></div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{ border: '1px dashed var(--koruna-border-color)', borderRadius: '12px', padding: '2.5rem', textAlign: 'center', color: 'var(--koruna-text-muted)', fontSize: '0.9rem', background: '#fafafa' }}>
-                      No courses created yet. Create a course to start tracking competency metrics!
-                    </div>
-                  )}
-                </div>
-              </div>
+              <SkillsDashboard key={userSession.id || userSession.email} userId={userSession.id} courses={courses} userProgress={userProgress} onStartStudy={handleStartStudy} />
             )}
 
             {/* TAB 7: CAREER PATH */}

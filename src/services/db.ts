@@ -11,6 +11,7 @@ export interface Lesson {
   moduleId?: string;
   moduleTitle?: string;
   duration?: string;
+  skillIds?: string[];
 }
 
 export interface QuizQuestion {
@@ -29,6 +30,7 @@ export interface CourseAssignment {
 
 export interface Course {
   id: string;
+  skillIds?: string[];
   createdBy?: string | null;
   title: string;
   category: string;
@@ -413,6 +415,7 @@ const mapDBCourse = (db: any): Course => {
   return {
     id: db.id,
     createdBy: db.created_by ?? null,
+    skillIds: db.skill_ids || [],
     title: db.title,
     category: db.category,
     rating: Number(db.rating || 4.5),
@@ -438,6 +441,7 @@ const mapCourseToDB = (c: Course) => {
   return {
     id: c.id,
     ...(c.createdBy !== undefined ? { created_by: c.createdBy } : {}),
+    ...(c.skillIds !== undefined ? { skill_ids: c.skillIds } : {}),
     title: c.title,
     category: c.category,
     rating: c.rating,
