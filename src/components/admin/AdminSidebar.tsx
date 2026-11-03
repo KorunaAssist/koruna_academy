@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { UserRole } from '../../services/auth';
 import type { Course } from '../../services/db';
-import { canAccessAdminTab } from '../../services/authorization';
+import { canAccessAdminTab,canAccessTab } from '../../services/authorization';
 
 export interface AdminSidebarProps {
   activeTab: string;
@@ -32,10 +32,13 @@ interface AdminNavItem {
   label: string;
   icon: React.ElementType;
   targetTab?: string;
+  pageTab?: string;
 }
 
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'team_reports', label: 'Team Reports', icon: BarChart3, pageTab: 'team_reports' },
+  { id: 'teams', label: 'Manage Teams', icon: Users },
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },
   { id: 'inventory', label: 'Course Inventory', icon: BookOpen },
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
@@ -52,7 +55,7 @@ const TRAINER_NAV_ITEMS: AdminNavItem[] = [
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
   { id: 'create_courses', label: 'Create courses', icon: PlusCircle, targetTab: 'creator' },
   { id: 'create_certificates', label: 'Create certificates', icon: Award, targetTab: 'certificate_templates' },
-  { id: 'view_reports', label: 'View reports', icon: BarChart3, targetTab: 'assignments' },
+  { id: 'view_reports', label: 'Team Reports', icon: BarChart3, pageTab: 'team_reports' },
 ];
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -64,7 +67,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   userRole,
 }) => {
   const navItems = (userRole === 'trainer' ? TRAINER_NAV_ITEMS : ADMIN_NAV_ITEMS)
-    .filter(item => canAccessAdminTab(userRole, item.targetTab || item.id));
+    .filter(item => item.pageTab ? canAccessTab(userRole,item.pageTab) : canAccessAdminTab(userRole, item.targetTab || item.id));
   const selectedItemId = navItems.find(
     item => (item.targetTab || item.id) === activeInnerTab
   )?.id;
@@ -72,8 +75,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const handleNavClick = (item: AdminNavItem) => {
     const targetTab = item.targetTab || item.id;
     setStudyingCourse(null);
-    onTabChange('admin_suite');
-    setActiveInnerTab?.(targetTab);
+    onTabChange(item.pageTab || 'admin_suite');
+    if (!item.pageTab) setActiveInnerTab?.(targetTab);
     setIsMobileSidebarOpen(false);
   };
 
