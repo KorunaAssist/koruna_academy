@@ -6,7 +6,7 @@ import { SessionWarningModal } from './components/SessionWarningModal';
 import { LoadingModal } from './components/LoadingModal';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
-import { safeTab } from './services/authorization';
+import { safeTab,defaultTab } from './services/authorization';
 import {
   getCurrentUserSession,
   subscribeToAuthChanges,
@@ -62,10 +62,7 @@ export function App() {
   const [hasCheckedAuthSession, setHasCheckedAuthSession] = useState(false);
 
   const getDefaultTabForUser = (user: UserSessionData, savedTab: ActiveTabType | null): ActiveTabType => {
-    if ((user.role === 'trainer' || user.role === 'admin') && (!savedTab || savedTab === 'dashboard')) {
-      return 'admin_suite';
-    }
-    return safeTab(user.role, savedTab) as ActiveTabType;
+    return defaultTab(user.role,savedTab) as ActiveTabType;
   };
 
   // Check for persisted expiration notice on initial load
