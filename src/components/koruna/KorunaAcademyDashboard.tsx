@@ -10,6 +10,7 @@ import {
 import type { UserSessionData } from '../../services/auth';
 import type { Course, DatabaseUser, UserProgress } from '../../services/db';
 import { CourseBannerHeader } from '../courses/CourseCard';
+import { dashboardLearningStats } from '../../services/dashboardLearningStats';
 
 export interface KorunaAcademyDashboardProps {
   userSession: UserSessionData;
@@ -63,15 +64,15 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   // Continue Learning must show a course the signed-in learner actually opened.
   // Do not fall back to assigned or catalogue courses: those have not necessarily
   // been started by this learner.
-  const currentUserEmail = (userSession?.email || '').toLowerCase();
+  const currentUserEmail = (userSession?.email || '').trim().toLowerCase();
 
   // Find user progress entries ONLY for courses that actually exist in courses array
   // and ONLY for the logged-in user
-  const userProgs = userProgress.filter((p) => {
-    const isUserMatch = Boolean(currentUserEmail) && p.userEmail.toLowerCase().trim() === currentUserEmail;
-    const courseExists = courses.some((c) => c.id === p.courseId);
-    return isUserMatch && courseExists;
-  });
+  const account = users.find(user => user.email.trim().toLowerCase() === currentUserEmail);
+  const { userProgress: userProgs, earnedCourses, overallProgress } = dashboardLearningStats(
+    courses, userProgress, currentUserEmail,
+    [userSession.id || '', account?.id || '', String(account?.userId || '')],
+  );
 
   const recentUndoneProgress = userProgs
     .filter((progress) => {
@@ -96,7 +97,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   const courseFinance = getCourseById('c7', 'Financial Planning Foundations', 'Finance');
 
   // Calculate total user learning hours dynamically from stored database progress
-  const totalUserLearningHours = userProgress.reduce((sum, p) => {
+  const totalUserLearningHours = userProgs.reduce((sum, p) => {
     if (p.learningHours !== undefined && p.learningHours !== null) {
       return sum + p.learningHours;
     }
@@ -166,11 +167,10 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     return parseDateOnly(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const recentCertificates = userProgs
-    .filter((progress) => progress.progressPercent === 100)
-    .map((progress) => {
-      const course = courses.find((item) => item.id === progress.courseId);
-      if (!course || course.requiresCertification === false) return null;
+  const recentCertificates = earnedCourses
+    .map((course) => {
+      const progress = userProgs.filter(item => item.courseId === course.id && item.progressPercent >= 100)
+        .sort((a, b) => new Date(b.lastViewedAt || 0).getTime() - new Date(a.lastViewedAt || 0).getTime())[0];
       const issuedAt = getCertificateIssueDate(progress);
       const certificateId = `CERT-${course.id.toUpperCase()}-${progress.applicationId || issuedAt.getFullYear()}`;
       return { course, progress, issuedAt, certificateId };
@@ -217,7 +217,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
       {/* STATS OVERVIEW CARDS ROW */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 0.8fr 0.9fr 0.8fr', gap: '1rem', marginBottom: '1.75rem' }}>
-        {/* Card 1: 68% OVERALL PROGRESS */}
+        {/* Card 1: OVERALL PROGRESS */}
         <div style={{
           backgroundColor: '#be185d',
           background: 'linear-gradient(135deg, #be185d 0%, #9d174d 100%)',
@@ -229,7 +229,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
           flexDirection: 'column',
           justifyContent: 'center'
         }}>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, lineHeight: 1 }}>68%</div>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, lineHeight: 1 }}>{overallProgress}%</div>
           <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '0.5rem', opacity: 0.9 }}>
             OVERALL PROGRESS
           </div>
@@ -274,7 +274,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             <Award size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>9</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{earnedCourses.length}</div>
             <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.06em', marginTop: '0.2rem' }}>
               CERTIFICATES
             </div>
