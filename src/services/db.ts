@@ -86,6 +86,7 @@ export interface PracticalSubmission {
   courseId: string;
   courseTitle: string;
   submissionText: string;
+  reviewFeedback?: string;
   status: 'pending' | 'approved' | 'rejected';
   dateSubmitted: string;
 }
@@ -530,19 +531,9 @@ const mapDBPractical = (db: any): PracticalSubmission => ({
   courseId: db.course_id,
   courseTitle: db.course_title,
   submissionText: db.submission_text,
+  reviewFeedback: db.review_feedback || undefined,
   status: db.status || 'pending',
   dateSubmitted: db.date_submitted
-});
-
-const mapPracticalToDB = (s: PracticalSubmission) => ({
-  id: s.id,
-  user_email: s.userEmail,
-  user_name: s.userName,
-  course_id: s.courseId,
-  course_title: s.courseTitle,
-  submission_text: s.submissionText,
-  status: s.status,
-  date_submitted: s.dateSubmitted
 });
 
 const mapDBNotification = (db: any): Notification => ({
@@ -1189,24 +1180,19 @@ export const dbService = {
   },
 
   async submitPractical(sub: Omit<PracticalSubmission, 'id' | 'status' | 'dateSubmitted'>): Promise<PracticalSubmission> {
+    if (isSupabaseConfigured()) {
+      const { data,error } = await supabase.rpc('submit_learning_practical', {
+        p_course_id: sub.courseId,p_submission_text: sub.submissionText,
+      });
+      if (error || !data) throw new Error(error?.message || 'Practical submission was not confirmed.');
+      return mapDBPractical(data);
+    }
     const newSub: PracticalSubmission = {
       ...sub,
       id: `p-${Date.now()}`,
       status: 'pending',
       dateSubmitted: new Date().toISOString().split('T')[0]
     };
-
-    if (isSupabaseConfigured()) {
-      try {
-        const dbSub = mapPracticalToDB(newSub);
-        const { error } = await supabase.from('practical_submissions').insert(dbSub);
-        if (error) {
-          console.error('Failed to insert practical submission into Supabase:', error);
-        }
-      } catch (err) {
-        console.error('Supabase submitPractical failed:', err);
-      }
-    }
 
     const subs = getStorageItem<PracticalSubmission[]>('koruna_practicals', DEFAULT_PRACTICALS);
     subs.push(newSub);

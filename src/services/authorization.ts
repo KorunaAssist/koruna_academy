@@ -3,7 +3,7 @@ export type UserRole = typeof USER_ROLES[number];
 export type Capability = 'viewDashboard' | 'studyCourses' | 'viewTeamReports' | 'assignCourses' | 'approveAssessments' | 'editCourses' | 'manageUsers' | 'systemSettings';
 
 const LEARNING_TABS = new Set(['dashboard', 'home', 'learn', 'catalog', 'catalog_courses', 'knowledge_base', 'feed', 'rewards', 'engage', 'career', 'career_path', 'my_koruna', 'learning_path', 'progress', 'certificates', 'skills', 'notifications', 'settings', 'profile']);
-const ADMIN_TABS = new Set(['overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'skill_catalogue', 'users', 'permissions', 'settings']);
+const ADMIN_TABS = new Set(['overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'skill_catalogue', 'teams', 'users', 'permissions', 'settings']);
 const TRAINER_TABS = new Set(['creator', 'inventory', 'certificate_templates', 'assignments', 'learning_paths']);
 
 export function isUserRole(value: unknown): value is UserRole {
@@ -38,6 +38,11 @@ export function canAccessTab(role: unknown, tab: string): boolean {
 export function safeTab(role: UserRole, tab: string | null): string {
   if (tab && canAccessTab(role, tab)) return tab;
   return role === 'admin' || role === 'trainer' ? 'admin_suite' : 'dashboard';
+}
+
+export function defaultTab(role: UserRole,savedTab: string | null): string {
+  const workspace = role==='team_leader' ? 'team_reports' : role==='admin' || role==='trainer' ? 'admin_suite' : 'dashboard';
+  return savedTab && savedTab!=='dashboard' && canAccessTab(role,savedTab) ? savedTab : workspace;
 }
 
 export function canAccessAdminTab(role: unknown, tab: string): boolean {
