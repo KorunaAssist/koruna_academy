@@ -11,6 +11,8 @@ interface CourseDetailViewProps {
   userProgress: UserProgress[];
   setActiveLessonIdx: (idx: number) => void;
   setStudyingCourse: (course: Course | null) => void;
+  onReturn?: () => void;
+  returnLabel?: string;
   handleMarkCourseComplete?: (courseId?: string) => Promise<void>;
   userSession?: UserSessionData;
   showToast?: (msg: string) => void;
@@ -28,6 +30,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   userProgress,
   setActiveLessonIdx,
   setStudyingCourse,
+  onReturn,
+  returnLabel = 'Course Catalogue',
   handleMarkCourseComplete,
   userSession,
   showToast
@@ -143,11 +147,11 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       <div style={{ display: 'flex', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--udemy-text-muted)', fontWeight: 500 }}>
         <span
           style={{ cursor: 'pointer', transition: 'color 0.2s' }}
-          onClick={() => setStudyingCourse(null)}
+          onClick={() => onReturn ? onReturn() : setStudyingCourse(null)}
           onMouseEnter={(e) => e.currentTarget.style.color = burgundyThemeColor}
           onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
         >
-          Course Catalogue
+          {returnLabel}
         </span>
         <span>/</span>
         <span>{studyingCourse.category}</span>

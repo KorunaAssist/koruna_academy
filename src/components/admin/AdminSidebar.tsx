@@ -42,6 +42,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },
   { id: 'inventory', label: 'Course Inventory', icon: BookOpen },
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
+  { id: 'career_paths', label: 'Career Paths', icon: Route },
   { id: 'skill_catalogue', label: 'Skills Catalogue', icon: SlidersHorizontal },
   { id: 'document_inventory', label: 'Document Inventory', icon: FileText },
   { id: 'certificate_templates', label: 'Certificate Templates', icon: Award },
@@ -53,6 +54,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 const TRAINER_NAV_ITEMS: AdminNavItem[] = [
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
+  { id: 'career_paths', label: 'Career Paths', icon: Route },
   { id: 'create_courses', label: 'Create courses', icon: PlusCircle, targetTab: 'creator' },
   { id: 'create_certificates', label: 'Create certificates', icon: Award, targetTab: 'certificate_templates' },
   { id: 'view_reports', label: 'Team Reports', icon: BarChart3, pageTab: 'team_reports' },

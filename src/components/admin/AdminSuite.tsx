@@ -24,6 +24,7 @@ import { CourseCard } from '../courses/CourseCard';
 import { canAccessAdminTab } from '../../services/authorization';
 import { LearningPathsManager } from './LearningPathsManager';
 import { SkillsManager } from './SkillsManager';
+import { CareerPathsManager } from './CareerPathsManager';
 import { TeamReportsView } from '../reports/TeamReportsView';
 import { KnowledgeHubManagerView } from './KnowledgeHubManagerView';
 interface AdminSuiteProps {
@@ -276,6 +277,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   certificate_templates: { title: 'Certificate template', description: 'Set the text shown on certificates and preview the result.' },
   assignments: { title: 'Assignments', description: 'Enroll employees in courses and documents.' },
   learning_paths: { title: 'Learning Paths', description: 'Create, publish, and assign course roadmaps.' },
+  career_paths: { title: 'Career Paths', description: 'Define career stages, training requirements, and skill targets.' },
   teams: { title: 'Manage Teams', description: 'Assign employees to team leaders for reporting and training supervision.' },
   skill_catalogue: { title: 'Skills Catalogue', description: 'Define the skills that employees develop through courses and lessons.' },
   users: { title: 'Users', description: 'Manage accounts, roles, and departments.' },
@@ -484,6 +486,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
 
       {/* COURSES INVENTORY */}
       {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
+      {activeInnerTab === 'career_paths' && <CareerPathsManager key={userSession.id || userSession.email} userSession={userSession} courses={allCourses} />}
       {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
       {activeInnerTab === 'teams' && <TeamReportsView key="admin-team-management" userSession={userSession} initialTab="teams" onChanged={loadPlatformData} />}
 

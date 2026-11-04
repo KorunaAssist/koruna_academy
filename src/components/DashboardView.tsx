@@ -17,6 +17,7 @@ import { CompletionCelebration } from './courses/CompletionCelebration';
 import { EarnedCertificates } from './courses/EarnedCertificates';
 import { LearningPathView } from './courses/LearningPathView';
 import { SkillsDashboard } from './courses/SkillsDashboard';
+import { CareerPathView } from './career/CareerPathView';
 import { TeamReportsView } from './reports/TeamReportsView';
 import { Sidebar } from './Sidebar';
 import { Header, HeaderActions } from './Header';
@@ -114,6 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Active Studying state
   const [studyingCourse, setStudyingCourseState] = useState<Course | null>(null);
+  const studyReturnTabRef = useRef('catalog_courses');
 
   const setStudyingCourse = (course: Course | null) => {
     if (course && !canManageCourse(userSession.role, userSession.id, course.createdBy) && !isAssignedToCurrentUser(course)) {
@@ -505,6 +507,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       prog.lastViewedAt = new Date().toISOString();
       await dbService.saveUserProgress(prog);
       await loadPlatformData();
+      studyReturnTabRef.current = activeTab==='career' || activeTab==='career_path' ? activeTab : 'catalog_courses';
       setStudyingCourse(course);
       setStudyingAssignmentId(prog.applicationId || 0);
       setActiveLessonIdx(-1);
@@ -519,11 +522,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const returnToCourseCatalogue = () => {
+    const returnTab = studyReturnTabRef.current;
+    studyReturnTabRef.current = 'catalog_courses';
     setStudyingCourse(null);
     setStudyingAssignmentId(null);
     setQuizSubmitted(false);
     setViewingCertificate(null);
-    handleTabChange('catalog_courses');
+    handleTabChange(returnTab);
   };
 
   const handleMarkLessonComplete = async (lessonId: string) => {
@@ -1138,6 +1143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <CourseStudyView
                 key={studyingCourse.id}
                 onReturnToCatalogue={returnToCourseCatalogue}
+                returnLabel={studyReturnTabRef.current==='career' || studyReturnTabRef.current==='career_path' ? 'My Career' : undefined}
                 studyingCourse={studyingCourse}
                 activeLessonIdx={activeLessonIdx}
                 setActiveLessonIdx={setActiveLessonIdx}
@@ -1171,6 +1177,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <CourseStudyView
                 key={studyingCourse.id}
                 onReturnToCatalogue={returnToCourseCatalogue}
+                returnLabel={studyReturnTabRef.current==='career' || studyReturnTabRef.current==='career_path' ? 'My Career' : undefined}
               studyingCourse={studyingCourse}
               activeLessonIdx={activeLessonIdx}
               setActiveLessonIdx={setActiveLessonIdx}
@@ -1475,54 +1482,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 7: CAREER PATH */}
             {(activeTab === 'career' || activeTab === 'career_path') && (
-              <div className="koruna-subview-wrapper">
-                <h2 className="koruna-section-title" style={{ marginBottom: '1rem' }}>My Career & Promotional Progression</h2>
-                <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.9rem', marginBottom: '2.5rem' }}>
-                  Review the qualifications and courses needed to achieve your next career rank inside Koruna.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: '1rem', bottom: '1rem', left: '1.5rem', width: '2px', backgroundColor: '#e4e4e7', zIndex: 1 }}></div>
-
-                  {[
-                    { rank: '1. Junior Operations Officer', status: 'Completed', detail: 'Completed onboarding training and basic regulatory compliance courses.', current: false, color: '#16a34a' },
-                    { rank: '2. Associate Loan Consultant', status: 'Active (Current Rank)', detail: 'Working on Mortgage Underwriting Level 2 courses. Requires 40 hours of study time.', current: true, color: 'var(--koruna-primary)' },
-                    { rank: '3. Senior Underwriting Specialist', status: 'Locked', detail: 'Requires completion of "Senior Mortgage: VA Loan Specialist", 95% quiz average, and Trainer recommendation.', current: false, color: '#a1a1aa' },
-                    { rank: '4. Regional Operations Manager', status: 'Locked', detail: 'Requires completion of "Agile Leadership & Cross-Functional Project Management" and 2 years of active tenure.', current: false, color: '#a1a1aa' }
-                  ].map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '1.5rem', zIndex: 2, position: 'relative' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: step.current ? 'var(--koruna-primary)' : step.status === 'Completed' ? '#16a34a' : '#ffffff',
-                          border: `2px solid ${step.current ? 'var(--koruna-primary)' : step.status === 'Completed' ? '#16a34a' : '#d1d5db'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: step.status === 'Locked' ? '#9ca3af' : '#ffffff',
-                          fontWeight: 800,
-                          fontSize: '0.8rem',
-                          flexShrink: 0
-                        }}
-                      >
-                        {i + 1}
-                      </div>
-
-                      <div style={{ border: `1px solid ${step.current ? 'var(--koruna-primary)' : 'var(--koruna-border-color)'}`, borderRadius: '12px', padding: '1.25rem', flex: 1, backgroundColor: '#ffffff' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--koruna-text-dark)' }}>{step.rank}</h4>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: step.color, background: step.current ? 'var(--koruna-primary-light)' : step.status === 'Completed' ? '#dcfce7' : '#f3f4f6', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                            {step.status}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--koruna-text-muted)' }}>{step.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <CareerPathView key={userSession.id || userSession.email} userSession={userSession} courses={courses} userProgress={userProgress} assignedCourseIds={courses.filter(course => isAssignedToCurrentUser(course)).map(course => course.id)} onStartStudy={handleStartStudy} onTabChange={handleTabChange}/>
             )}
 
             {/* TAB 8: KNOWLEDGE BASE */}
