@@ -53,6 +53,7 @@ interface NavParentItem {
 const KORUNA_LIFE_NAV: NavParentItem[] = [
   { id: 'dashboard', label: 'Home', icon: Home },
   { id: 'catalog', label: 'Koruna Academy', icon: GraduationCap },
+  { id: 'team_reports', label: 'Team Reports', icon: PieChart },
   { id: 'knowledge_base', label: 'Knowledge Hub', icon: BookOpen },
   { id: 'feed', label: 'Koruna Feed', icon: Megaphone },
   { id: 'rewards', label: 'Recognition & Rewards', icon: Trophy },
@@ -245,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <>
               {/* KORUNA LIFE SIDEBAR MENU */}
-              {KORUNA_LIFE_NAV.map((item) => {
+              {KORUNA_LIFE_NAV.filter(item => canAccessTab(userSession.role,item.id)).map((item) => {
                 const IconComponent = item.icon;
                 const isActive = (activeTab === item.id || (item.id === 'catalog' && (activeTab === 'learn' || studyingCourse))) && !studyingCourse;
 

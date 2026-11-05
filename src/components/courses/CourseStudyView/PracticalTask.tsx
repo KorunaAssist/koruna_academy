@@ -1,6 +1,7 @@
-import React from 'react';
-import { Award, Send, Hourglass, CheckCircle2, XCircle } from 'lucide-react';
+import React, { useEffect,useState } from 'react';
+import { Award, Send, Hourglass, CheckCircle2 } from 'lucide-react';
 import type { Course, UserProgress } from '../../../services/db';
+import { dbService } from '../../../services/db';
 
 interface PracticalTaskProps {
   studyingCourse: Course;
@@ -19,6 +20,18 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
 }) => {
   const currentProgress = userProgress.find(p => p.courseId === studyingCourse.id);
   const status = currentProgress?.practicalStatus || 'none';
+  const [reviewFeedback,setReviewFeedback] = useState('');
+  useEffect(() => {
+    let active = true;
+    setReviewFeedback('');
+    if (currentProgress?.userEmail) {
+      dbService.getPracticalSubmissions().then(rows => {
+        const submission = rows.find(row => row.courseId===studyingCourse.id && row.userEmail.toLowerCase()===currentProgress.userEmail.toLowerCase() && row.status===status);
+        if (active) setReviewFeedback(submission?.reviewFeedback || '');
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  },[currentProgress?.userEmail,status,studyingCourse.id]);
 
   return (
     <div style={{
@@ -59,7 +72,8 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
         </p>
       </div>
 
-      {status === 'none' ? (
+      {status === 'rejected' && <p role="status">Changes requested: {reviewFeedback || 'Please revise your practical work and resubmit it for review.'}</p>}
+      {status === 'none' || status === 'rejected' ? (
         /* SUBMISSION FORM */
         <form onSubmit={handlePracticalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <textarea
@@ -133,7 +147,6 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
           }}>
             {status === 'approved' && <CheckCircle2 size={24} />}
             {status === 'pending' && <Hourglass size={24} style={{ animation: 'spin 4s linear infinite' }} />}
-            {status === 'rejected' && <XCircle size={24} />}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -147,7 +160,6 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
             }}>
               {status === 'approved' && 'Assessment Approved'}
               {status === 'pending' && 'Review Status: Pending'}
-              {status === 'rejected' && 'Review Status: Changes Requested'}
             </span>
             <p style={{
               fontSize: '0.85rem',
@@ -158,9 +170,8 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
                 status === 'pending' ? '#b45309' :
                 '#b91c1c'
             }}>
-              {status === 'pending' && 'Sarah Chen (Team Leader) is auditing your mortgage case. You will be notified once reviewed.'}
-              {status === 'approved' && 'Excellent underwriting logic. Your certificate is unlocked.'}
-              {status === 'rejected' && 'We requested adjustments to the DTI calculations. Please update cases and resubmit.'}
+              {status === 'pending' && 'Your practical work is waiting for an authorised reviewer. You will receive a notification when it is reviewed.'}
+              {status === 'approved' && (reviewFeedback || 'Your practical work has been approved.')}
             </p>
           </div>
         </div>

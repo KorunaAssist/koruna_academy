@@ -110,6 +110,9 @@ export const HeaderActions: React.FC<HeaderActionsProps> = ({
   const viewMenuRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const workspaceTab = userSession.role==='team_leader' ? 'team_reports' : 'admin_suite';
+  const workspaceLabel = userSession.role==='team_leader' ? 'Team Leader View' : userSession.role==='trainer' ? 'Trainer View' : 'Admin View';
+  const isWorkspace = activeTab===workspaceTab;
   const handleNotificationsToggle = () => {
     const nextShowNotifications = !showNotifications;
     setShowNotifications(nextShowNotifications);
@@ -150,13 +153,13 @@ export const HeaderActions: React.FC<HeaderActionsProps> = ({
   return (
     <div className="kh-header-right">
       {/* View Mode Switcher Pill */}
-      {(userSession.role === 'admin' || userSession.role === 'trainer') && (
+      {(userSession.role === 'admin' || userSession.role === 'trainer' || userSession.role === 'team_leader') && (
         <div style={{ position: 'relative' }} ref={viewMenuRef}>
           <button
             className="kh-view-pill"
             onClick={() => setShowViewMenu((prev) => !prev)}
           >
-            <span>{activeTab === 'admin_suite' ? 'Admin View' : 'Employee View'}</span>
+            <span>{isWorkspace ? workspaceLabel : 'Employee View'}</span>
             <ChevronDown size={14} />
           </button>
 
@@ -164,18 +167,18 @@ export const HeaderActions: React.FC<HeaderActionsProps> = ({
             <div className="kh-dropdown" style={{ right: 0, width: '185px', padding: '0.4rem', marginTop: '4px' }}>
               <button
                 className="kh-profile-item"
-                style={{ fontWeight: activeTab === 'admin_suite' ? 700 : 500, color: activeTab === 'admin_suite' ? '#a31555' : '#334155' }}
+                style={{ fontWeight: isWorkspace ? 700 : 500, color: isWorkspace ? '#a31555' : '#334155' }}
                 onClick={() => {
-                  onTabChange('admin_suite');
-                  setActiveInnerTab?.('overview');
+                  onTabChange(workspaceTab);
+                  if (workspaceTab==='admin_suite') setActiveInnerTab?.(userSession.role==='trainer' ? 'creator' : 'overview');
                   setShowViewMenu(false);
                 }}
               >
-                <Shield size={14} /> Admin View
+                <Shield size={14} /> {workspaceLabel}
               </button>
               <button
                 className="kh-profile-item"
-                style={{ fontWeight: activeTab !== 'admin_suite' ? 700 : 500, color: activeTab !== 'admin_suite' ? '#a31555' : '#334155' }}
+                style={{ fontWeight: !isWorkspace ? 700 : 500, color: !isWorkspace ? '#a31555' : '#334155' }}
                 onClick={() => {
                   onTabChange('dashboard');
                   setShowViewMenu(false);

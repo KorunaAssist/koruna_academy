@@ -7,7 +7,7 @@ import {
   List
 } from 'lucide-react';
 import type { UserSessionData, UserRole } from '../services/auth';
-import { dbService, calculateCourseLearningHours, type Course, type Lesson, type QuizQuestion, type UserProgress, type Badge, type PracticalSubmission, type Department, type SystemSettings, type RolePermissions, type DatabaseUser, type Notification } from '../services/db';
+import { dbService, calculateCourseLearningHours, type Course, type Lesson, type QuizQuestion, type UserProgress, type Badge, type Department, type SystemSettings, type RolePermissions, type DatabaseUser, type Notification } from '../services/db';
 import { AdminSuite } from './admin/AdminSuite';
 import { LoadingModal } from './LoadingModal';
 import { CourseStudyView } from './courses/CourseStudyView';
@@ -17,6 +17,8 @@ import { CompletionCelebration } from './courses/CompletionCelebration';
 import { EarnedCertificates } from './courses/EarnedCertificates';
 import { LearningPathView } from './courses/LearningPathView';
 import { SkillsDashboard } from './courses/SkillsDashboard';
+import { CareerPathView } from './career/CareerPathView';
+import { TeamReportsView } from './reports/TeamReportsView';
 import { Sidebar } from './Sidebar';
 import { Header, HeaderActions } from './Header';
 import { UnderDevelopment } from './UnderDevelopment';
@@ -47,7 +49,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
   const [teamProgress, setTeamProgress] = useState<Record<string, UserProgress[]>>({});
   const [, setBadges] = useState<Badge[]>([]);
-  const [practicals, setPracticals] = useState<PracticalSubmission[]>([]);
   const [users, setUsers] = useState<DatabaseUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [settings, setSettings] = useState<SystemSettings>(dbService.getSettings());
@@ -114,6 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Active Studying state
   const [studyingCourse, setStudyingCourseState] = useState<Course | null>(null);
+  const studyReturnTabRef = useRef('catalog_courses');
 
   const setStudyingCourse = (course: Course | null) => {
     if (course && !canManageCourse(userSession.role, userSession.id, course.createdBy) && !isAssignedToCurrentUser(course)) {
@@ -145,7 +147,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [viewingCertificate, setViewingCertificate] = useState<{ course: Course; date: string; id: string } | null>(null);
 
   // Nudged tracker
-  const [nudgedUsers, setNudgedUsers] = useState<Record<string, boolean>>({});
 
   // Trainer & Admin forms state
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
@@ -205,7 +206,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const loadedCourses = await dbService.getCourses();
       const loadedProgress = await dbService.getUserProgress(userSession.email);
       const loadedBadges = await dbService.getUserBadges(userSession.email);
-      const loadedPracticals = await dbService.getPracticalSubmissions();
       const loadedUsers = await dbService.getUsers();
       const loadedDeps = dbService.getDepartments();
       const loadedSettings = dbService.getSettings();
@@ -215,7 +215,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setCourses(loadedCourses);
       setUserProgress(loadedProgress);
       setBadges(loadedBadges);
-      setPracticals(loadedPracticals);
       setUsers(loadedUsers);
       setDepartments(loadedDeps);
       setSettings(loadedSettings);
@@ -244,7 +243,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     } catch (error) {
       setCourses([]);
       setUsers([]);
-      setPracticals([]);
       setTeamProgress({});
       setUserProgress([]);
       setNotifications([]);
@@ -509,6 +507,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       prog.lastViewedAt = new Date().toISOString();
       await dbService.saveUserProgress(prog);
       await loadPlatformData();
+      studyReturnTabRef.current = activeTab==='career' || activeTab==='career_path' ? activeTab : 'catalog_courses';
       setStudyingCourse(course);
       setStudyingAssignmentId(prog.applicationId || 0);
       setActiveLessonIdx(-1);
@@ -523,11 +522,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const returnToCourseCatalogue = () => {
+    const returnTab = studyReturnTabRef.current;
+    studyReturnTabRef.current = 'catalog_courses';
     setStudyingCourse(null);
     setStudyingAssignmentId(null);
     setQuizSubmitted(false);
     setViewingCertificate(null);
-    handleTabChange('catalog_courses');
+    handleTabChange(returnTab);
   };
 
   const handleMarkLessonComplete = async (lessonId: string) => {
@@ -676,17 +677,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     e.preventDefault();
     if (!studyingCourse || !practicalText.trim()) return;
 
-    await dbService.submitPractical({
-      userEmail: userSession.email,
-      userName: userSession.name,
-      courseId: studyingCourse.id,
-      courseTitle: studyingCourse.title,
-      submissionText: practicalText
-    });
+    try {
+      await dbService.submitPractical({
+        userEmail: userSession.email,
+        userName: userSession.name,
+        courseId: studyingCourse.id,
+        courseTitle: studyingCourse.title,
+        submissionText: practicalText
+      });
 
-    showToast('Practical assessment submitted to your Team Leader for review!');
-    setPracticalText('');
-    await loadPlatformData();
+      showToast('Practical assessment submitted for review.');
+      setPracticalText('');
+      await loadPlatformData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to submit practical work. Please retry.');
+    }
   };
 
   const handleSignOutClick = () => {
@@ -720,19 +725,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       showToast(`Assigned "${c?.title || courseId}" to ${u?.name || email}`);
     }
     await loadPlatformData();
-  };
-
-  const handleReviewPractical = async (subId: string, status: 'approved' | 'rejected') => {
-    if (!can(userSession.role, 'approveAssessments')) { showToast('You do not have permission to review assessments.'); return; }
-    await dbService.reviewPractical(subId, status);
-    const sub = practicals.find(p => p.id === subId);
-    showToast(`Practical assessment by ${sub?.userName} has been ${status.toUpperCase()}`);
-    await loadPlatformData();
-  };
-
-  const handleNudgeUser = (email: string, courseCode: string) => {
-    setNudgedUsers(prev => ({ ...prev, [`${email}-${courseCode}`]: true }));
-    showToast(`Sent urgent learning reminder nudge to ${email}!`);
   };
 
   // ==========================================
@@ -1151,6 +1143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <CourseStudyView
                 key={studyingCourse.id}
                 onReturnToCatalogue={returnToCourseCatalogue}
+                returnLabel={studyReturnTabRef.current==='career' || studyReturnTabRef.current==='career_path' ? 'My Career' : undefined}
                 studyingCourse={studyingCourse}
                 activeLessonIdx={activeLessonIdx}
                 setActiveLessonIdx={setActiveLessonIdx}
@@ -1184,6 +1177,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <CourseStudyView
                 key={studyingCourse.id}
                 onReturnToCatalogue={returnToCourseCatalogue}
+                returnLabel={studyReturnTabRef.current==='career' || studyReturnTabRef.current==='career_path' ? 'My Career' : undefined}
               studyingCourse={studyingCourse}
               activeLessonIdx={activeLessonIdx}
               setActiveLessonIdx={setActiveLessonIdx}
@@ -1488,54 +1482,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 7: CAREER PATH */}
             {(activeTab === 'career' || activeTab === 'career_path') && (
-              <div className="koruna-subview-wrapper">
-                <h2 className="koruna-section-title" style={{ marginBottom: '1rem' }}>My Career & Promotional Progression</h2>
-                <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.9rem', marginBottom: '2.5rem' }}>
-                  Review the qualifications and courses needed to achieve your next career rank inside Koruna.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: '1rem', bottom: '1rem', left: '1.5rem', width: '2px', backgroundColor: '#e4e4e7', zIndex: 1 }}></div>
-
-                  {[
-                    { rank: '1. Junior Operations Officer', status: 'Completed', detail: 'Completed onboarding training and basic regulatory compliance courses.', current: false, color: '#16a34a' },
-                    { rank: '2. Associate Loan Consultant', status: 'Active (Current Rank)', detail: 'Working on Mortgage Underwriting Level 2 courses. Requires 40 hours of study time.', current: true, color: 'var(--koruna-primary)' },
-                    { rank: '3. Senior Underwriting Specialist', status: 'Locked', detail: 'Requires completion of "Senior Mortgage: VA Loan Specialist", 95% quiz average, and Trainer recommendation.', current: false, color: '#a1a1aa' },
-                    { rank: '4. Regional Operations Manager', status: 'Locked', detail: 'Requires completion of "Agile Leadership & Cross-Functional Project Management" and 2 years of active tenure.', current: false, color: '#a1a1aa' }
-                  ].map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '1.5rem', zIndex: 2, position: 'relative' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: step.current ? 'var(--koruna-primary)' : step.status === 'Completed' ? '#16a34a' : '#ffffff',
-                          border: `2px solid ${step.current ? 'var(--koruna-primary)' : step.status === 'Completed' ? '#16a34a' : '#d1d5db'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: step.status === 'Locked' ? '#9ca3af' : '#ffffff',
-                          fontWeight: 800,
-                          fontSize: '0.8rem',
-                          flexShrink: 0
-                        }}
-                      >
-                        {i + 1}
-                      </div>
-
-                      <div style={{ border: `1px solid ${step.current ? 'var(--koruna-primary)' : 'var(--koruna-border-color)'}`, borderRadius: '12px', padding: '1.25rem', flex: 1, backgroundColor: '#ffffff' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--koruna-text-dark)' }}>{step.rank}</h4>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: step.color, background: step.current ? 'var(--koruna-primary-light)' : step.status === 'Completed' ? '#dcfce7' : '#f3f4f6', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                            {step.status}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--koruna-text-muted)' }}>{step.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <CareerPathView key={userSession.id || userSession.email} userSession={userSession} courses={courses} userProgress={userProgress} assignedCourseIds={courses.filter(course => isAssignedToCurrentUser(course)).map(course => course.id)} onStartStudy={handleStartStudy} onTabChange={handleTabChange}/>
             )}
 
             {/* TAB 8: KNOWLEDGE BASE */}
@@ -1543,183 +1490,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <KnowledgeHubView />
             )}
 
-            {/* TAB 9: TEAM REPORTS (TEAM LEADER) */}
+            {/* TEAM REPORTS */}
             {activeTab === 'team_reports' && can(userSession.role, 'viewTeamReports') && (
-              <div className="koruna-subview-wrapper">
-                <div style={{ marginBottom: '2rem' }}>
-                  <h2 className="koruna-section-title" style={{ marginBottom: '0.5rem' }}>
-                    Team Progress & Operations Console
-                  </h2>
-                  <p style={{ color: 'var(--koruna-text-muted)', fontSize: '0.95rem' }}>
-                    Review quiz metrics, assign training plans, audit practical risk reviews, and monitor timelines.
-                  </p>
-                </div>
-
-                {/* Sub tabs for Team Leader */}
-                <div className="koruna-inner-tab-bar">
-                  <button className={`koruna-inner-tab ${activeInnerTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveInnerTab('overview')}>
-                    Team Progress Overview
-                  </button>
-                  <button className={`koruna-inner-tab ${activeInnerTab === 'assignments' ? 'active' : ''}`} onClick={() => setActiveInnerTab('assignments')}>
-                    Course Assignments
-                  </button>
-                  <button className={`koruna-inner-tab ${activeInnerTab === 'practicals' ? 'active' : ''}`} onClick={() => setActiveInnerTab('practicals')}>
-                    Practical Reviews ({practicals.filter(p => p.status === 'pending').length})
-                  </button>
-                </div>
-
-                {/* SECTION 9.1: OVERVIEW */}
-                {activeInnerTab === 'overview' && (
-                  <div>
-                    {/* Performance metrics */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
-                      <div style={{ border: '1px solid var(--koruna-border-color)', padding: '1.25rem', background: '#f9fafb', borderRadius: '12px' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--koruna-text-muted)' }}>TEAM AVERAGE PROGRESS</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 800, color: '#16a34a', marginTop: '0.25rem' }}>
-                          {users.length > 0 ? '56.2%' : '0%'}
-                        </div>
-                      </div>
-
-                      <div style={{ border: '1px solid var(--koruna-border-color)', padding: '1.25rem', background: '#f9fafb', borderRadius: '12px' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--koruna-text-muted)' }}>OVERDUE COMPLIANCE ITEMS</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ea4335', marginTop: '0.25rem' }}>
-                          2 Employees
-                        </div>
-                      </div>
-
-                      <div style={{ border: '1px solid var(--koruna-border-color)', padding: '1.25rem', background: '#f9fafb', borderRadius: '12px' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--koruna-text-muted)' }}>PENDING SUBMISSIONS</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--koruna-primary)', marginTop: '0.25rem' }}>
-                          {practicals.filter(p => p.status === 'pending').length} Cases
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Team overview listings */}
-                    <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', backgroundColor: '#ffffff' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1rem' }}>Employee Standings & Quiz Scores</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {users.filter(u => Boolean(u.email)).map((emp) => {
-                          const userProgList = teamProgress[emp.email.toLowerCase()] || [];
-                          return (
-                            <div key={emp.email} style={{ padding: '1rem', border: '1px solid var(--koruna-border-color)', borderRadius: '8px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{emp.name}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>Dept: {emp.department} • {emp.email}</div>
-                                </div>
-                              </div>
-
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                                {userProgList.map(p => {
-                                  const course = courses.find(c => c.id === p.courseId);
-                                  if (!course) return null;
-                                  return (
-                                    <div key={p.courseId} style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '6px', fontSize: '0.8rem' }}>
-                                      <div style={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>{course.code}</span>
-                                        <span style={{ color: p.progressPercent === 100 ? '#16a34a' : 'var(--koruna-primary)' }}>{p.progressPercent}%</span>
-                                      </div>
-                                      <div className="koruna-progress-bar-track" style={{ margin: '0.5rem 0', height: '4px' }}>
-                                        <div className="koruna-progress-bar-fill" style={{ width: `${p.progressPercent}%` }}></div>
-                                      </div>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--koruna-text-muted)' }}>
-                                        <span>Quiz Score: {p.quizScore !== undefined ? `${p.quizScore}%` : 'N/A'}</span>
-                                        <span>Attempts: {p.quizAttempts}</span>
-                                      </div>
-                                      {p.overdue && (
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid var(--koruna-border-color)', paddingTop: '0.4rem' }}>
-                                          <span style={{ color: '#ef4444', fontWeight: 700 }}>Overdue!</span>
-                                          <button
-                                            className="btn-koruna-outline"
-                                            style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem', height: '22px' }}
-                                            disabled={nudgedUsers[`${emp.email}-${course.code}`]}
-                                            onClick={() => handleNudgeUser(emp.email, course.code)}
-                                          >
-                                            {nudgedUsers[`${emp.email}-${course.code}`] ? 'Reminded' : 'Send Nudge'}
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SECTION 9.2: ASSIGNMENTS */}
-                {activeInnerTab === 'assignments' && (
-                  <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', backgroundColor: '#ffffff' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--koruna-text-dark)', marginBottom: '1rem' }}>Assign Training Plan</h3>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {users.filter(u => Boolean(u.email)).map((emp) => (
-                        <div key={emp.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid var(--koruna-border-color)', borderRadius: '8px', flexWrap: 'wrap', gap: '1rem' }}>
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{emp.name}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--koruna-text-muted)' }}>{emp.email} • Dept: {emp.department}</div>
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--koruna-text-muted)' }}>Quick Assign:</span>
-                            {courses.map(course => {
-                              const empProg = teamProgress[emp.email.toLowerCase()] || [];
-                              const alreadyHas = empProg.some(p => p.courseId === course.id && (p.progressPercent > 0 || p.dueDate));
-                              return (
-                                <button
-                                  key={course.id}
-                                  className={alreadyHas ? 'btn-koruna-outline' : 'btn-koruna-solid'}
-                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', height: '28px' }}
-                                  onClick={() => handleAssignCourse(course.id, emp.email)}
-                                >
-                                  {course.code} {alreadyHas ? '✓' : '+'}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* SECTION 9.3: PRACTICAL REVIEWS */}
-                {activeInnerTab === 'practicals' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {practicals.filter(p => p.status === 'pending').map((sub) => (
-                      <div key={sub.id} style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '1.5rem', backgroundColor: '#ffffff', boxShadow: 'var(--koruna-card-shadow)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--koruna-border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                          <div>
-                            <span style={{ fontWeight: 800, color: 'var(--koruna-primary)' }}>{sub.courseTitle}</span>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--koruna-text-muted)' }}>Submitted by: {sub.userName} ({sub.userEmail}) • Date: {sub.dateSubmitted}</div>
-                          </div>
-                        </div>
-                        <div style={{ fontSize: '0.9rem', color: 'var(--koruna-text-dark)', lineHeight: 1.5, marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--koruna-primary)' }}>
-                          "{sub.submissionText}"
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                          <button className="btn-koruna-solid" style={{ background: '#16a34a', borderColor: '#16a34a' }} onClick={() => handleReviewPractical(sub.id, 'approved')}>
-                            Approve & Certify
-                          </button>
-                          <button className="btn-koruna-outline" style={{ color: '#ef4444', borderColor: '#ef4444' }} onClick={() => handleReviewPractical(sub.id, 'rejected')}>
-                            Reject / Request Changes
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {practicals.filter(p => p.status === 'pending').length === 0 && (
-                      <div style={{ border: '1px solid var(--koruna-border-color)', borderRadius: '12px', padding: '3rem', textAlign: 'center', color: 'var(--koruna-text-muted)', backgroundColor: '#ffffff' }}>
-                        No pending practical assessments requiring your review.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <TeamReportsView key={userSession.id || userSession.email} userSession={userSession} onChanged={loadPlatformData} />
             )}
 
             {/* TAB 10: ADMIN & CONTENT SUITE */}

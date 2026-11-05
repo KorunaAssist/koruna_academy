@@ -31,6 +31,7 @@ interface CourseStudyViewProps {
   handleMarkCourseComplete?: (courseId?: string) => Promise<void>;
   setStudyingCourse: (course: Course | null) => void;
   onReturnToCatalogue: () => void;
+  returnLabel?: string;
   settings: SystemSettings;
   users: DatabaseUser[];
   teamProgress: Record<string, UserProgress[]>;
@@ -62,6 +63,7 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
   handleMarkCourseComplete,
   setStudyingCourse,
   onReturnToCatalogue,
+  returnLabel,
   settings,
   users,
   teamProgress,
@@ -91,6 +93,8 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
         userProgress={userProgress}
         setActiveLessonIdx={setActiveLessonIdx}
         setStudyingCourse={setStudyingCourse}
+        onReturn={onReturnToCatalogue}
+        returnLabel={returnLabel}
         handleMarkCourseComplete={handleMarkCourseComplete}
         userSession={userSession}
         showToast={showToast}
