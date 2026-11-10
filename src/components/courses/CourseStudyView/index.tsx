@@ -71,19 +71,9 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
   loadPlatformData,
   showToast
 }) => {
-  // Keep the initial completion state so a first-time pass can still show its certificate.
-  const [completedOnEntry] = React.useState(() => userProgress.some(progress =>
-    progress.courseId === studyingCourse.id &&
-    progress.userEmail.trim().toLowerCase() === userSession.email.trim().toLowerCase() &&
-    progress.progressPercent >= 100));
-  React.useEffect(() => {
-    if (completedOnEntry) onReturnToCatalogue();
-  }, [completedOnEntry, onReturnToCatalogue]);
   const canAssignCourses = React.useMemo(() => {
     return userSession.role === 'admin' || userSession.role === 'team_leader' || userSession.role === 'trainer';
   }, [userSession.role]);
-
-  if (completedOnEntry) return null;
 
   // If activeLessonIdx is -1, show the Course Detail page
   if (activeLessonIdx === -1) {

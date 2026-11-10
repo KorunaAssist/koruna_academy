@@ -4,6 +4,7 @@ import type { Course, SystemSettings } from '../../../services/db';
 import type { UserSessionData } from '../../../services/auth';
 import { CertificateView } from '../CertificateView';
 import { CompletionCelebration } from '../CompletionCelebration';
+import { countAnsweredQuizQuestions, getQuizQuestionType } from '../../../services/quizAnswers';
 
 interface QuizViewerProps {
   studyingCourse: Course;
@@ -122,7 +123,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
   }
 
   const totalQuestions = quiz.length;
-  const answeredCount = Object.keys(quizAnswers).length;
+  const answeredCount = countAnsweredQuizQuestions(quiz, quizAnswers, quizTextAnswers);
   const progressPct = Math.round((answeredCount / totalQuestions) * 100);
   const q = quiz[currentQ];
   const selectedOpt = quizAnswers[currentQ] ?? -1;
@@ -205,7 +206,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
               <button
                 onClick={onDone || (() => { if (setStudyingCourse) setStudyingCourse(null); else setActiveLessonIdx(0); })}
                 style={{
@@ -483,7 +484,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
 
         {/* Answer Options Rendering Based on Question Type */}
         {(() => {
-          const qType = q.type || (q.options?.length === 2 && (q.options[0]?.toLowerCase() === 'true') ? 'true_false' : (!q.options || q.options.length === 0 || q.answerText) ? 'short_answer' : 'multiple_choice');
+          const qType = getQuizQuestionType(q);
 
           if (qType === 'short_answer') {
             return (

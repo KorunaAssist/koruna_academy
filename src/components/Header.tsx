@@ -277,9 +277,9 @@ export const HeaderActions: React.FC<HeaderActionsProps> = ({
 
             <button
               className="kh-profile-item"
-              onClick={() => { onTabChange('progress'); setShowProfileMenu(false); }}
+              onClick={() => { onTabChange('profile'); setShowProfileMenu(false); }}
             >
-              <Sliders size={15} /> My Profile & Progress
+              <Sliders size={15} /> My Profile
             </button>
             <button
               className="kh-profile-item"

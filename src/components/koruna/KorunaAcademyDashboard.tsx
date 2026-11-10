@@ -1,4 +1,5 @@
 import React from 'react';
+import { AssignedCoursesModal } from './AssignedCoursesModal';
 import {
   Award,
   Clock,
@@ -34,7 +35,31 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   setSearchQuery
 }) => {
   const userName = userSession.name || 'Jessica Timon';
-  const [dismissedDoneAssignedCourseIds, setDismissedDoneAssignedCourseIds] = React.useState<string[]>([]);
+  const assignedCoursesDialogRef = React.useRef<HTMLDialogElement>(null);
+  const dismissalStorageKey = `koruna:assigned-course-dismissals:${(userSession.email || userSession.id || '').trim().toLowerCase()}`;
+  const savedDismissals = React.useMemo<string[]>(() => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(dismissalStorageKey) || '[]');
+      return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+      return [];
+    }
+  }, [dismissalStorageKey]);
+  const [dismissals, setDismissals] = React.useState({ key: dismissalStorageKey, ids: savedDismissals });
+  const dismissedDoneAssignedCourseIds = dismissals.key === dismissalStorageKey
+    ? dismissals.ids
+    : savedDismissals;
+
+  const dismissCompletedAssignment = (courseId: string) => {
+    const ids = [...new Set([...dismissedDoneAssignedCourseIds, courseId])];
+    try {
+      localStorage.setItem(dismissalStorageKey, JSON.stringify(ids));
+    } catch (error) {
+      console.warn('Unable to save completed assignment dismissal:', error);
+      return;
+    }
+    setDismissals({ key: dismissalStorageKey, ids });
+  };
 
   // Helper to find existing course or create a fallback course object for study view
   const getCourseById = (id: string, fallbackTitle: string, category: string): Course => {
@@ -179,8 +204,177 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())
     .slice(0, 3);
 
+  const renderAssignedCourses = (includeDismissed = false, completion?: 'incomplete' | 'completed') => {
+          // The modal also includes the learner's finished courses, even when
+          // their original assignment metadata is no longer present.
+          const assignedCourses = courses.filter((c) => {
+            const prog = userProgress.find(
+              (p) => p.courseId === c.id && (
+                currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail
+              )
+            );
+
+            if (!includeDismissed && prog?.progressPercent === 100 && dismissedDoneAssignedCourseIds.includes(c.id)) {
+              return false;
+            }
+
+            const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
+            const hasAssignedCourseFlag = (
+              !!c.assignedUsers && c.assignedUsers.some((a) =>
+                (userSession.id && String(a.userId).toLowerCase().trim() === String(userSession.id).toLowerCase().trim()) ||
+                (userSession.email && String(a.userId).toLowerCase().trim() === currentUserEmail)
+              )
+            );
+
+            const hasFinishedCourse = includeDismissed && !!prog && prog.progressPercent >= 100;
+            const isComplete = !!prog && prog.progressPercent >= 100;
+            if (completion === 'completed' && !isComplete) return false;
+            if (completion === 'incomplete' && isComplete) return false;
+            return hasAssignedProgress || hasAssignedCourseFlag || hasFinishedCourse;
+          });
+
+          if (assignedCourses.length === 0) {
+            return (
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                border: '1px dashed #cbd5e1',
+                padding: '2.5rem 1.5rem',
+                textAlign: 'center',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+              }}>
+                <BookOpen size={32} style={{ color: '#be185d', marginBottom: '0.75rem', opacity: 0.6 }} />
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+                  {completion === 'completed' ? 'No Completed Courses' : completion === 'incomplete' ? 'No Incomplete Courses' : 'No Assigned Courses'}
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
+                  {completion === 'completed' ? 'Your finished courses will appear here.' : completion === 'incomplete' ? 'You have no assigned courses left to finish.' : 'You currently have no courses assigned to you.'}
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+              {assignedCourses.map((course) => {
+                const prog = userProgress.find((p) => p.courseId === course.id && (currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail));
+                const percent = prog ? prog.progressPercent : 0;
+                const isStarted = percent > 0;
+                const isComplete = percent >= 100;
+                const dueDateText = formatDueDate(prog?.dueDate);
+
+                return (
+                  <div
+                    key={course.id}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      border: '1px solid #e2e8f0',
+                      padding: '1.25rem',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <CourseBannerHeader
+                      course={{ ...course, imageUrl: undefined }}
+                      height="110px"
+                      borderRadius="12px"
+                      style={{ marginBottom: '1rem' }}
+                    >
+                      <span style={{ position: 'absolute', top: '0.65rem', left: '0.65rem', border: '1px solid #fda4af', color: '#be185d', backgroundColor: '#ffffff', fontSize: '0.65rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
+                        {course.level || 'INTERMEDIATE'}
+                      </span>
+                    </CourseBannerHeader>
+
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <span style={{ backgroundColor: '#fce7f3', color: '#be185d', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px' }}>
+                        {course.category || 'General'}
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.85rem 0', lineHeight: 1.35, height: '2.7em', overflow: 'hidden' }}>
+                      {course.title}
+                    </h4>
+
+                    {includeDismissed && isComplete && (
+                      <span style={{ alignSelf: 'flex-start', marginBottom: '0.85rem', padding: '0.25rem 0.6rem', borderRadius: '50px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.75rem', fontWeight: 700 }}>
+                        Completed
+                      </span>
+                    )}
+
+                    {dueDateText && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          marginBottom: '1rem',
+                          padding: '0.55rem 0.7rem',
+                          borderRadius: '8px',
+                          backgroundColor: prog?.overdue ? '#fef2f2' : '#f8fafc',
+                          color: prog?.overdue ? '#b91c1c' : '#475569',
+                          fontSize: '0.78rem'
+                        }}
+                      >
+                        <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Due
+                        </span>
+                        <strong style={{ color: prog?.overdue ? '#b91c1c' : '#202124', fontWeight: 800 }}>
+                          {dueDateText}
+                        </strong>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: 'auto' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ flex: 1, height: '5px', backgroundColor: '#e2e8f0', borderRadius: '50px', overflow: 'hidden' }}>
+                          <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#be185d', borderRadius: '50px' }} />
+                        </div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>{percent}%</span>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (isComplete) {
+                            dismissCompletedAssignment(course.id);
+                            if (includeDismissed) assignedCoursesDialogRef.current?.close();
+                            return;
+                          }
+
+                          assignedCoursesDialogRef.current?.close();
+                          onStartStudy(course, prog?.applicationId);
+                        }}
+                        style={{
+                          width: '100%',
+                          backgroundColor: isStarted ? '#be185d' : '#ffffff',
+                          color: isStarted ? '#ffffff' : '#0f172a',
+                          border: isStarted ? 'none' : '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          padding: '0.6rem 0',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {isComplete ? 'Done' : isStarted ? 'Continue' : 'Start'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+
+  };
+
   return (
     <div style={{ padding: '1.75rem 2rem 3rem 2rem', backgroundColor: '#f8fafc', minHeight: '100%' }}>
+      <AssignedCoursesModal
+        dialogRef={assignedCoursesDialogRef}
+        renderCourses={(completion) => renderAssignedCourses(true, completion)}
+      />
       {/* HEADER ROW */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -431,166 +625,14 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             Assigned Courses
           </h2>
           <button
-            onClick={() => onTabChange('learning_path')}
+            onClick={() => assignedCoursesDialogRef.current?.showModal()}
             style={{ border: 'none', background: 'none', color: '#be185d', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
           >
             View all
           </button>
         </div>
 
-        {(() => {
-          // Filter courses that are explicitly assigned to the current user
-          const assignedCourses = courses.filter((c) => {
-            const prog = userProgress.find(
-              (p) => p.courseId === c.id && (
-                !p.userEmail || (currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail)
-              )
-            );
-
-            if (prog?.progressPercent === 100 && dismissedDoneAssignedCourseIds.includes(c.id)) {
-              return false;
-            }
-
-            const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
-            const hasAssignedCourseFlag = !!c.isAssigned || (
-              !!c.assignedUsers && c.assignedUsers.some((a) =>
-                (userSession.id && String(a.userId).toLowerCase().trim() === String(userSession.id).toLowerCase().trim()) ||
-                (userSession.email && String(a.userId).toLowerCase().trim() === currentUserEmail) ||
-                (currentUserEmail && currentUserEmail.includes(String(a.userId).toLowerCase().trim()))
-              )
-            );
-
-            return hasAssignedProgress || hasAssignedCourseFlag;
-          });
-
-          if (assignedCourses.length === 0) {
-            return (
-              <div style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                border: '1px dashed #cbd5e1',
-                padding: '2.5rem 1.5rem',
-                textAlign: 'center',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-              }}>
-                <BookOpen size={32} style={{ color: '#be185d', marginBottom: '0.75rem', opacity: 0.6 }} />
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
-                  No Assigned Courses
-                </h4>
-                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
-                  You currently have no courses assigned to you.
-                </p>
-              </div>
-            );
-          }
-
-          return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-              {assignedCourses.map((course) => {
-                const prog = userProgress.find((p) => p.courseId === course.id && (!p.userEmail || p.userEmail.toLowerCase().trim() === currentUserEmail));
-                const percent = prog ? prog.progressPercent : 0;
-                const isStarted = percent > 0;
-                const isComplete = percent === 100;
-                const dueDateText = formatDueDate(prog?.dueDate);
-
-                return (
-                  <div
-                    key={course.id}
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '16px',
-                      border: '1px solid #e2e8f0',
-                      padding: '1.25rem',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                      display: 'flex',
-                      flexDirection: 'column'
-                    }}
-                  >
-                    <CourseBannerHeader
-                      course={{ ...course, imageUrl: undefined }}
-                      height="110px"
-                      borderRadius="12px"
-                      style={{ marginBottom: '1rem' }}
-                    >
-                      <span style={{ position: 'absolute', top: '0.65rem', left: '0.65rem', border: '1px solid #fda4af', color: '#be185d', backgroundColor: '#ffffff', fontSize: '0.65rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase' }}>
-                        {course.level || 'INTERMEDIATE'}
-                      </span>
-                    </CourseBannerHeader>
-
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <span style={{ backgroundColor: '#fce7f3', color: '#be185d', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px' }}>
-                        {course.category || 'General'}
-                      </span>
-                    </div>
-
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.85rem 0', lineHeight: 1.35, height: '2.7em', overflow: 'hidden' }}>
-                      {course.title}
-                    </h4>
-
-                    {dueDateText && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '0.75rem',
-                          marginBottom: '1rem',
-                          padding: '0.55rem 0.7rem',
-                          borderRadius: '8px',
-                          backgroundColor: prog?.overdue ? '#fef2f2' : '#f8fafc',
-                          color: prog?.overdue ? '#b91c1c' : '#475569',
-                          fontSize: '0.78rem'
-                        }}
-                      >
-                        <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Due
-                        </span>
-                        <strong style={{ color: prog?.overdue ? '#b91c1c' : '#202124', fontWeight: 800 }}>
-                          {dueDateText}
-                        </strong>
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: 'auto' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                        <div style={{ flex: 1, height: '5px', backgroundColor: '#e2e8f0', borderRadius: '50px', overflow: 'hidden' }}>
-                          <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#be185d', borderRadius: '50px' }} />
-                        </div>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>{percent}%</span>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          if (isComplete) {
-                            setDismissedDoneAssignedCourseIds((ids) => (
-                              ids.includes(course.id) ? ids : [...ids, course.id]
-                            ));
-                            return;
-                          }
-
-                          onStartStudy(course, prog?.applicationId);
-                        }}
-                        style={{
-                          width: '100%',
-                          backgroundColor: isStarted ? '#be185d' : '#ffffff',
-                          color: isStarted ? '#ffffff' : '#0f172a',
-                          border: isStarted ? 'none' : '1px solid #cbd5e1',
-                          borderRadius: '8px',
-                          padding: '0.6rem 0',
-                          fontSize: '0.85rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {isComplete ? 'Done' : isStarted ? 'Continue' : 'Start'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+        {renderAssignedCourses()}
       </div>
 
       {/* BOTTOM TWO-COLUMN LAYOUT */}

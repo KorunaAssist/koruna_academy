@@ -30,17 +30,23 @@ export const LoadingModal: React.FC<LoadingModalProps> = ({ type = 'academy', me
 
   return createPortal(
     <div className={`loading-modal-overlay ${variant === 'modal' ? 'loading-modal-overlay--dialog' : ''}`}>
-      <div className={`loading-modal-container ${variant === 'modal' ? 'loading-modal-container--dialog' : ''}`}>
-        <div className="loading-logo-icon">
+      <div
+        className={`loading-modal-container ${variant === 'modal' ? 'loading-modal-container--dialog' : ''}`}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <div className="loading-modal-emblem" aria-hidden="true">
           <KorunaLogoSvg
-            width={variant === 'modal' ? 72 : 140}
-            height={variant === 'modal' ? 54 : 104}
+            width={40}
+            height={30}
             useGradient={true}
           />
         </div>
         <div className="loading-text-label">
           <span>{displayText}</span>
         </div>
+        <div className="loading-modal-track" aria-hidden="true"><span /></div>
       </div>
     </div>,
     document.body

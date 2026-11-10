@@ -982,6 +982,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
             </div>
             <div className="cc-ratio">
               <iframe src={getEmbedUrl(videoModal)} title="Lesson video" allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
             </div>
           </div>

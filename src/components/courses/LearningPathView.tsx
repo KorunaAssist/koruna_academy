@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Lock, Play, Route } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, CircleCheck, Compass, Lock, Play, Route, Search, Target } from 'lucide-react';
 import type { Course, UserProgress } from '../../services/db';
 import type { UserSessionData } from '../../services/auth';
 import { learningPathService, type PathVersion } from '../../services/learningPaths';
@@ -19,6 +19,7 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
   const [busy,setBusy] = useState(false);
   const [actionError,setActionError] = useState('');
   const [query,setQuery] = useState('');
+  const [tab,setTab] = useState<'mine' | 'explore'>('mine');
   const myEnrolments = data.enrolments.filter(e => e.user_id === userSession.id);
   const myVersions = myEnrolments.flatMap(e => data.versions.filter(v => v.id === e.version_id));
   const published = data.versions.filter(v => v.status === 'published' && !data.versions.some(other =>
@@ -37,34 +38,42 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
     finally { setBusy(false); }
   };
   const matches = (v: PathVersion) => `${v.name} ${v.description}`.toLowerCase().includes(query.toLowerCase());
+  const completedCount = myEnrolments.filter(e => data.progress.some(p => p.enrolment_id === e.id && p.progress_percent >= 100)).length;
+  const visiblePaths = (tab === 'mine' ? myVersions : discover).filter(matches);
   const card = (v: PathVersion) => {
     const joined = myEnrolments.find(e => e.version_id === v.id);
     const progress = data.progress.find(p => p.enrolment_id === joined?.id);
     return <button className={`lp-roadmap-card ${selected?.id === v.id ? 'selected' : ''}`} key={v.id} onClick={() => setSelectedId(v.id)} aria-pressed={selected?.id === v.id}>
-      <div className="lp-toolbar"><Route size={23}/><span className="lp-badge">{joined ? (progress?.progress_percent === 100 ? 'Completed' : joined.source === 'assigned' ? 'Assigned' : 'In Progress') : 'Open to everyone'}</span></div>
+      <div className="lp-toolbar"><span className="lp-path-icon"><Route size={23}/></span><span className="lp-badge">{joined ? (progress?.progress_percent === 100 ? 'Completed' : joined.source === 'assigned' ? 'Assigned' : 'In Progress') : 'Open to everyone'}</span></div>
       <h3>{v.name}</h3><p>{v.description || 'Follow a guided sequence of courses.'}</p>
       <small>{data.courses.filter(c => c.version_id === v.id).length} courses · Version {v.version_number}{v.status === 'archived' ? ' · Archived' : ''}</small>
-      {joined && <><progress max={100} value={progress?.progress_percent || 0}/><strong>{progress?.progress_percent || 0}% complete</strong></>}
+      {joined && <><progress aria-label={`${v.name} progress`} max={100} value={progress?.progress_percent || 0}/><strong>{progress?.progress_percent || 0}% complete</strong></>}
+      <span className="lp-card-link">View learning path <ArrowRight size={16}/></span>
     </button>;
   };
   return <section className="lp-workspace lp-learner" aria-labelledby="lp-title">
-    <header className="lp-heading"><div><span className="lp-eyebrow">YOUR NEXT CHAPTER</span><h1 id="lp-title">Learning Paths</h1><p>Build your skills one course at a time. Explore any published roadmap and learn at your own pace.</p></div><Route size={42}/></header>
-    {loading && <p role="status">Loading learning paths…</p>}
+    <header className="lp-page-heading"><div><span className="lp-eyebrow">LEARN WITH PURPOSE</span><h1 id="lp-title">Your next chapter starts here.</h1><p>Follow a clear path. Build practical skills. Make progress that matters.</p></div><span className="lp-page-label"><Route size={16}/> Learning Paths</span></header>
+    {loading && <div className="lp-empty" role="status">Loading your learning paths...</div>}
     {(error || actionError) && <div className="lp-alert" role="alert">{error || actionError}<button className="lp-button" disabled={busy} onClick={() => run(async () => { await reload(); })}>Retry</button></div>}
     {!loading && !error && <>
-      <label className="lp-field lp-search">Find a roadmap<input type="search" placeholder="Search Parabroker, Web Dev…" value={query} onChange={e => setQuery(e.target.value)}/></label>
-      <h2>My Learning Paths</h2>
-      <div className="lp-card-grid">{myVersions.filter(matches).map(card)}{!myVersions.length && <p className="lp-empty">Join a roadmap or start one of its courses to track your progress here.</p>}</div>
-      <h2>Explore Roadmaps</h2><p className="lp-muted">Published roadmaps are available to everyone on the platform.</p>
-      <div className="lp-card-grid">{discover.filter(matches).map(card)}{!discover.length && <p className="lp-empty">{published.length ? 'You have joined all available roadmaps.' : 'No roadmaps have been published yet.'}</p>}</div>
-      {query && ![...myVersions,...discover].some(matches) && <p>No roadmaps match your search.</p>}
+      <div className="lp-overview">
+        <div className="lp-feature"><span className="lp-feature-icon"><Compass size={27}/></span><span className="lp-eyebrow">SMALL STEPS. REAL GROWTH.</span><h2>A little learning.<br/>A whole new direction.</h2><p>Your goals, broken down into a guided sequence of courses. Pick a path and take the next step.</p><button className="lp-feature-action" onClick={() => setTab('explore')}>Explore learning paths <ArrowRight size={17}/></button><Route className="lp-feature-art" size={150} strokeWidth={1}/></div>
+        <div className="lp-stats" aria-label="Your learning path summary">
+          <div><span className="lp-stat-icon"><Route size={20}/></span><strong>{myEnrolments.length}<small>Paths joined</small></strong></div>
+          <div><span className="lp-stat-icon green"><CircleCheck size={20}/></span><strong>{completedCount}<small>Paths completed</small></strong></div>
+          <div><span className="lp-stat-icon amber"><Target size={20}/></span><strong>{discover.length}<small>Paths to explore</small></strong></div>
+        </div>
+      </div>
+      <div className="lp-library-heading"><div><h2>Find your direction</h2><p className="lp-muted">A roadmap for every next step in your career.</p></div><label className="lp-search-box"><Search size={18}/><input aria-label="Search learning paths" type="search" placeholder="Search learning paths..." value={query} onChange={e => setQuery(e.target.value)}/></label></div>
+      <div className="lp-tabs" role="group" aria-label="Learning path collection"><button aria-pressed={tab === 'mine'} className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My learning paths <span>{myVersions.length}</span></button><button aria-pressed={tab === 'explore'} className={tab === 'explore' ? 'active' : ''} onClick={() => setTab('explore')}>Explore paths <span>{discover.length}</span></button></div>
+      <div className="lp-card-grid">{visiblePaths.map(card)}{!visiblePaths.length && <div className="lp-empty"><BookOpen size={30}/><h3>{query ? 'No matching paths' : tab === 'mine' ? 'Your journey is ready to begin' : 'All caught up'}</h3><p>{query ? 'Try a different name or keyword.' : tab === 'mine' ? 'Explore the available learning paths and find your next goal.' : published.length ? 'You have joined all available paths. Keep going with your courses below.' : 'New learning paths will appear here when they are published.'}</p>{tab === 'mine' && !query && <button className="lp-button primary" onClick={() => setTab('explore')}>Explore paths <ArrowRight size={16}/></button>}</div>}</div>
       {selected && <section className="lp-panel lp-stack" aria-label={`${selected.name} course sequence`}>
         <div className="lp-toolbar"><div><span className="lp-eyebrow">COURSE ROADMAP · VERSION {selected.version_number}</span><h2>{selected.name}</h2></div>
-          {enrolment ? <strong>{pathProgress?.progress_percent || 0}% complete</strong> : <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.enrol(selected.path_id); await reload(); })}>{busy ? 'Joining…' : 'Join Learning Path'}</button>}
+          {enrolment ? <strong>{pathProgress?.progress_percent || 0}% complete</strong> : <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.enrol(selected.path_id); await reload(); })}>{busy ? 'Joining...' : 'Join Learning Path'}</button>}
         </div>
         <p className="lp-muted">{selected.description}</p>
         {enrolment?.due_at && <p>Due {new Date(enrolment.due_at).toLocaleDateString()}</p>}
-        {enrolment && <progress max={100} value={pathProgress?.progress_percent || 0}/>}
+        {enrolment && <progress aria-label="Selected path progress" max={100} value={pathProgress?.progress_percent || 0}/>}
         {nextCourse && <div><button className="lp-button primary" disabled={busy || !onStartStudy} onClick={() => onStartStudy?.(courses.find(c => c.id === nextCourse.course_id)!)}><Play size={16}/> {enrolment ? 'Continue Learning' : 'Start First Available Course'}</button></div>}
         <ol className="lp-sequence">{selectedCourses.map(row => {
           const course = courses.find(c => c.id === row.course_id);

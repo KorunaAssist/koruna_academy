@@ -40,13 +40,13 @@ export function CareerPathView({userSession,courses,userProgress,assignedCourseI
     catch (reason) {setError(reason instanceof Error ? reason.message : 'Unable to save your goal.');}
     finally {setBusy(false);}
   };
-  return <section className="lp-workspace lp-learner" aria-labelledby="career-title">
-    <header className="lp-heading"><div><span className="lp-eyebrow">PLAN YOUR NEXT ROLE</span><h1 id="career-title">My Career</h1><p>Follow your career goal, see what you have achieved, and find your next training step.</p></div><TrendingUp size={42}/></header>
-    <p className="lp-muted">Progress shows training readiness. Promotions and role changes are decided by your organisation.</p>
+  return <section className="lp-workspace lp-learner mc-page" aria-labelledby="career-title">
+    <header className="mc-heading"><div><span className="lp-eyebrow">YOUR NEXT CHAPTER</span><h1 id="career-title">My Career</h1><p>Build your skills. Find your direction. Take the next step.</p></div><span className="mc-heading-label"><TrendingUp size={18}/> Your growth, your journey</span></header>
     {error && <div role="alert" className="lp-alert">{error}</div>}
     {notice && <p role="status" className="lp-notice">{notice}</p>}
     {loading && !data && <p role="status">Loading career paths...</p>}
     {!data && !loading && <button className="lp-button" onClick={() => setRefresh(n => n+1)}>Retry</button>}
     {data && <MyCareerContent key={data.goals.find(goal => goal.user_id===userSession.id)?.path_id || 'no-goal'} workspace={data} userSession={userSession} courses={courses} userProgress={userProgress} assignedCourseIds={assignedCourseIds} onStartStudy={onStartStudy} onTabChange={onTabChange} onSetGoal={setGoal} onRefresh={() => setRefresh(n => n+1)} loading={loading} busy={busy}/>}
+    <p className="mc-footnote">Progress reflects training readiness. Speak with your team leader about promotions and role opportunities.</p>
   </section>;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { isQuizAnswerCorrect } from '../services/quizAnswers';
 import {
   LogOut,
   CheckCircle, Menu,
@@ -15,12 +16,14 @@ import { CourseCard } from './courses/CourseCard';
 import { CertificateView } from './courses/CertificateView';
 import { CompletionCelebration } from './courses/CompletionCelebration';
 import { EarnedCertificates } from './courses/EarnedCertificates';
+import { MyProgress } from './courses/MyProgress';
 import { LearningPathView } from './courses/LearningPathView';
 import { SkillsDashboard } from './courses/SkillsDashboard';
 import { CareerPathView } from './career/CareerPathView';
 import { TeamReportsView } from './reports/TeamReportsView';
 import { Sidebar } from './Sidebar';
 import { Header, HeaderActions } from './Header';
+import { ProfileView } from './ProfileView';
 import { UnderDevelopment } from './UnderDevelopment';
 import { KorunaHomeView } from './koruna/KorunaHomeView';
 import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
@@ -35,13 +38,15 @@ interface DashboardViewProps {
   activeTab: string;
   onTabChange: (tab: any) => void;
   onSignOut: () => void;
+  onProfileUpdated: (user: UserSessionData) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   userSession,
   activeTab: requestedTab,
   onTabChange,
-  onSignOut
+  onSignOut,
+  onProfileUpdated
 }) => {
   const activeTab = safeTab(userSession.role, requestedTab);
   // --- CORE SYSTEM STATE ---
@@ -57,6 +62,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // --- UI INTERACTION STATE ---
   const [_showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [openingCourseTitle, setOpeningCourseTitle] = useState<string | null>(null);
+  const openingCourseRef = useRef(false);
   const [catalogueView, setCatalogueView] = useState<'grid' | 'list'>('grid');
   const [selectedCatalogueLob, setSelectedCatalogueLob] = useState('All');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -350,18 +357,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
   const userInitials = getUserInitials(userSession.name);
 
-  const getCourseLob = (course: Course) => {
-    const category = course.category.toLowerCase();
-    if (category.includes('mortgage') || category.includes('loan processing')) return 'MB';
-    if (category.includes('lending') || category.includes('financial product')) return 'FP';
-    if (category.includes('onboarding') || category.includes('operation') || category.includes('ai') || category.includes('compliance') || category.includes('leadership') || category.includes('policy')) return 'General';
-    return 'Other';
-  };
+  const getCourseLob = (course: Course) => course.category.trim() || 'Uncategorized';
 
-  const catalogueLobs = ['All', ...Array.from(new Set(courses.map(getCourseLob))).sort((a, b) => {
-    const order = ['MB', 'FP', 'General', 'Other'];
-    return order.indexOf(a) - order.indexOf(b);
-  })];
+  const catalogueLobs = ['All', ...Array.from(new Set(courses.map(getCourseLob)))
+    .filter(category => category !== 'All').sort((a, b) => a.localeCompare(b))];
 
   // Filter catalog courses
   const filteredCourses = courses.filter(c =>
@@ -383,110 +382,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     { title: 'Done Courses', courses: filteredCourses.filter(course => currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) },
     { title: 'All Courses ? Not Assigned', courses: filteredCourses.filter(course => !isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) }
   ];
-  const assignedCourseCount = currentUserProgress.length;
-  const completedProgress = currentUserProgress.filter((progress) => progress.progressPercent >= 100);
-  const completedCourseCount = completedProgress.length;
-  const overallProgressPercent = assignedCourseCount > 0
-    ? Math.round(currentUserProgress.reduce((sum, progress) => sum + progress.progressPercent, 0) / assignedCourseCount)
-    : 0;
-  const currentYear = new Date().getFullYear();
-  const certificateCount = completedProgress.filter((progress) => {
-    const course = courses.find((item) => item.id === progress.courseId);
-    if (course?.requiresCertification === false) return false;
-    const issuedDateValue = progress.lastViewedAt || progress.dueDate;
-    if (!issuedDateValue) return true;
-    const issuedDate = new Date(issuedDateValue);
-    return Number.isNaN(issuedDate.getTime()) || issuedDate.getFullYear() === currentYear;
-  }).length;
-  const learningHours = currentUserProgress.reduce((sum, progress) => {
-    if (typeof progress.learningHours === 'number') return sum + progress.learningHours;
-    const course = courses.find((item) => item.id === progress.courseId);
-    if (!course || progress.progressPercent <= 0) return sum;
-    const courseHours = course.lessons?.length ? Math.max(course.lessons.length * 0.5, 0.5) : 1;
-    return sum + Number(((progress.progressPercent / 100) * courseHours).toFixed(1));
-  }, 0);
-  const learningHoursTarget = 80;
-  const assignedCompletionPercent = assignedCourseCount > 0
-    ? Math.round((completedCourseCount / assignedCourseCount) * 100)
-    : 0;
-
-  const getProgressCourse = (progress: UserProgress) => courses.find((course) => course.id === progress.courseId);
-  const averageProgressScore = (matcher: (course: Course) => boolean) => {
-    const matchedProgress = currentUserProgress.filter((progress) => {
-      const course = getProgressCourse(progress);
-      return course ? matcher(course) : false;
-    });
-    if (matchedProgress.length === 0) return 0;
-    return Math.round(matchedProgress.reduce((sum, progress) => sum + progress.progressPercent, 0) / matchedProgress.length);
-  };
-  const textMatches = (course: Course, terms: string[]) => {
-    const haystack = `${course.title} ${course.category} ${course.code} ${course.description}`.toLowerCase();
-    return terms.some((term) => haystack.includes(term));
-  };
-  const skillScores = [
-    {
-      label: 'Mortgage Processing',
-      percent: averageProgressScore((course) => textMatches(course, ['mortgage', 'loan', 'lending']))
-    },
-    {
-      label: 'Client Communication',
-      percent: averageProgressScore((course) => textMatches(course, ['client', 'communication', 'service', 'leadership']))
-    },
-    {
-      label: 'Regulatory Compliance',
-      percent: averageProgressScore((course) => textMatches(course, ['regulatory', 'compliance', 'policy', 'document']))
-    },
-    {
-      label: 'AI',
-      percent: averageProgressScore((course) => textMatches(course, ['ai', 'automation', 'technology', 'tech']))
-    }
-  ].map((skill) => ({
-    ...skill,
-    value: Math.round(skill.percent / 10)
-  }));
-
-  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
-  const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
-  const currentMonthStart = monthStart(new Date());
-  const monthlyActivity = Array.from({ length: 6 }, (_, index) => {
-    const monthDate = new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth() - (5 - index), 1);
-    const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
-    const activity = currentUserProgress.reduce((sum, progress) => {
-      const activityDateValue = progress.lastViewedAt || progress.dueDate;
-      if (!activityDateValue) return sum;
-      const activityDate = new Date(activityDateValue);
-      if (Number.isNaN(activityDate.getTime())) return sum;
-      const progressMonthKey = `${activityDate.getFullYear()}-${activityDate.getMonth()}`;
-      if (progressMonthKey !== monthKey) return sum;
-      return sum + Math.max(progress.completedLessons.length, progress.progressPercent > 0 ? 1 : 0);
-    }, 0);
-    return {
-      month: monthFormatter.format(monthDate),
-      activity,
-      active: monthKey === `${currentMonthStart.getFullYear()}-${currentMonthStart.getMonth()}`
-    };
-  });
-  const maxMonthlyActivity = Math.max(...monthlyActivity.map((item) => item.activity), 1);
-  const monthlyActivityBars = monthlyActivity.map((item) => ({
-    ...item,
-    height: item.activity > 0 ? Math.max(18, Math.round((item.activity / maxMonthlyActivity) * 92)) : 8
-  }));
-
   // ==========================================
   // EMPLOYEE CAPABILITIES & EVENTS
   // ==========================================
 
   const handleStartStudy = async (course: Course, applicationId?: number) => {
+    if (openingCourseRef.current) return;
+    openingCourseRef.current = true;
+    setOpeningCourseTitle(course.title);
     try {
       const progressList = await dbService.getUserProgress(userSession.email);
       const existing = progressList.find(p => p.courseId === course.id &&
         (applicationId === undefined || (p.applicationId || 0) === applicationId));
       if (existing && existing.progressPercent >= 100) {
-        setStudyingCourse(null);
-        setStudyingAssignmentId(null);
+        setStudyingCourse(course);
+        setStudyingAssignmentId(existing.applicationId || 0);
+        setActiveLessonIdx(-1);
+        setQuizAnswers({});
+        setQuizTextAnswers({});
         setQuizSubmitted(false);
+        setPracticalText('');
         setViewingCertificate(null);
-        handleTabChange('catalog_courses');
         return;
       }
       if (!isAssignedToCurrentUser(course, progressList)) {
@@ -518,6 +434,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     } catch (err) {
       console.error('Unable to start course:', err);
       showToast(err instanceof Error ? err.message : 'Unable to save course progress. Please try again.');
+    } finally {
+      openingCourseRef.current = false;
+      setOpeningCourseTitle(null);
     }
   };
 
@@ -612,18 +531,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     let correctCount = 0;
     studyingCourse.quiz.forEach((q, idx) => {
-      const qType = q.type || (q.options?.length === 2 && (q.options[0]?.toLowerCase() === 'true') ? 'true_false' : (!q.options || q.options.length === 0 || q.answerText) ? 'short_answer' : 'multiple_choice');
-
-      if (qType === 'short_answer') {
-        const userText = (quizTextAnswers[idx] || '').trim().toLowerCase();
-        const keyText = (q.answerText || q.options?.[0] || '').trim().toLowerCase();
-        if (userText && keyText && (userText === keyText || userText.includes(keyText) || keyText.includes(userText))) {
-          correctCount++;
-        }
-      } else {
-        if (quizAnswers[idx] === q.correctAnswer) {
-          correctCount++;
-        }
+      if (isQuizAnswerCorrect(q, quizAnswers[idx], quizTextAnswers[idx])) {
+        correctCount++;
       }
     });
 
@@ -640,6 +549,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       if (prog) {
         const wasCompleted = prog.progressPercent === 100;
         prog.quizAttempts += 1;
+        prog.quizHistory = [...(prog.quizHistory || []), { attempt: prog.quizAttempts, score, submittedAt: new Date().toISOString() }];
         prog.quizScore = Math.max(prog.quizScore || 0, score);
 
         // Re-calculate overall course progress percentage
@@ -1295,7 +1205,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-                  <div role="tablist" aria-label="Filter courses by line of business" style={{ display: 'flex', alignItems: 'flex-end', gap: '0.7rem', flexWrap: 'wrap', paddingTop: '7px' }}>
+                  <div role="tablist" aria-label="Filter courses by category" style={{ display: 'flex', alignItems: 'flex-end', gap: '0.7rem', flexWrap: 'wrap', paddingTop: '7px' }}>
                     {catalogueLobs.map((lob) => {
                       const selected = selectedCatalogueLob === lob;
                       const count = lob === 'All' ? courses.length : courses.filter((course) => getCourseLob(course) === lob).length;
@@ -1339,7 +1249,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         const progress = prog?.progressPercent ?? 0;
                         return (
                           <article key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#ffffff', flexWrap: 'wrap' }}>
-                            <div style={{ width: '38px', height: '38px', borderRadius: '9px', display: 'grid', placeItems: 'center', background: '#fdf2f8', color: '#a31555', fontSize: '0.76rem', fontWeight: 800 }}>{getCourseLob(c)}</div>
+                            <div style={{ width: '38px', height: '38px', borderRadius: '9px', display: 'grid', placeItems: 'center', background: '#fdf2f8', color: '#a31555', flexShrink: 0 }} title={getCourseLob(c)}><Folder size={18} /></div>
                             <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                               <h3 style={{ margin: 0, color: '#1e293b', fontSize: '0.98rem' }}>{c.title}</h3>
                               <div style={{ marginTop: '0.28rem', color: '#64748b', fontSize: '0.8rem' }}>{c.code} · {c.category} · {c.level}</div>
@@ -1388,85 +1298,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
             {/* TAB 4: MY PROGRESS DETAIL */}
             {activeTab === 'progress' && (
-              <div className="koruna-progress-page">
-                <section className="koruna-progress-hero" aria-labelledby="progress-title">
-                  <h2 id="progress-title">My Progress</h2>
-                  <p>A full breakdown of your learning activity and growth.</p>
-                </section>
-
-                <section className="koruna-progress-stats" aria-label="Progress summary">
-                  <article className="koruna-progress-stat-card koruna-progress-stat-card-featured">
-                    <span>Overall %</span>
-                    <strong>{overallProgressPercent}%</strong>
-                    <div className="koruna-progress-mini-track" aria-hidden="true">
-                      <div style={{ width: `${overallProgressPercent}%` }} />
-                    </div>
-                    <p>Across all assigned courses</p>
-                  </article>
-
-                  <article className="koruna-progress-stat-card">
-                    <span>Completed Courses</span>
-                    <strong>{completedCourseCount} / {assignedCourseCount}</strong>
-                    <p>{assignedCompletionPercent}% of assigned courses</p>
-                  </article>
-
-                  <article className="koruna-progress-stat-card">
-                    <span>Certificates</span>
-                    <strong>{certificateCount}</strong>
-                    <p>Earned this year</p>
-                  </article>
-
-                  <article className="koruna-progress-stat-card">
-                    <span>Learning Hours</span>
-                    <strong>{learningHours.toFixed(1)}h</strong>
-                    <p>Of {learningHoursTarget}h yearly target</p>
-                  </article>
-                </section>
-
-                <section className="koruna-progress-insights">
-                  <div className="koruna-skills-panel">
-                    <h3>Skills Progress</h3>
-                    {skillScores.map((skill) => (
-                      <div className="koruna-skill-row" key={skill.label}>
-                        <div className="koruna-skill-label-row">
-                          <span>{skill.label}</span>
-                        </div>
-                        <div className="koruna-skill-meter-row">
-                          <div className="koruna-skill-track">
-                            <div style={{ width: `${skill.percent}%` }} />
-                          </div>
-                          <span>{skill.value}/10</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="koruna-activity-panel">
-                    <h3>Monthly Activity</h3>
-                    <div className="koruna-monthly-chart" aria-label="Monthly activity chart">
-                      {monthlyActivityBars.map((item) => (
-                        <div className="koruna-month-bar-group" key={item.month}>
-                          <div
-                            className={`koruna-month-bar ${item.active ? 'active' : ''}`}
-                            style={{ height: `${item.height}%` }}
-                            title={`${item.activity} learning ${item.activity === 1 ? 'activity' : 'activities'}`}
-                            aria-hidden="true"
-                          />
-                          <span>{item.month}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              </div>
+              <MyProgress
+                courses={courses}
+                progress={currentUserProgress}
+                isAssigned={isAssignedToCurrentUser}
+                onStudy={handleStartStudy}
+                onBrowse={() => handleTabChange('catalog_courses')}
+                onCertificate={(course) => {
+                  const cert = getCertData(course.id);
+                  setViewingCertificate({ course, date: cert.date, id: cert.id });
+                }}
+              />
             )}
-
             {/* TAB 5: MY CERTIFICATES */}
             {activeTab === 'certificates' && (
               <EarnedCertificates
                 courses={courses}
                 progress={userProgress}
                 learnerName={userSession.name}
+                getIssueDate={(course) => getCertData(course.id).date}
                 onBrowse={() => handleTabChange('catalog_courses')}
                 onView={(course) => {
                   const cert = getCertData(course.id);
@@ -1545,8 +1395,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               />
             )}
 
+            {(activeTab === 'profile' || activeTab === 'settings') && <ProfileView userSession={userSession} onProfileUpdated={onProfileUpdated} onNavigate={handleTabChange}/>}
             {/* FALLBACK FOR UNIMPLEMENTED STUB TABS */}
-            {['feed', 'rewards', 'engage', 'my_koruna', 'notifications', 'settings'].includes(activeTab) && (
+            {['feed', 'rewards', 'engage', 'my_koruna', 'notifications'].includes(activeTab) && (
               <UnderDevelopment
                 title={
                   activeTab === 'feed' ? 'Koruna Feed' :
@@ -1618,6 +1469,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* ACADEMY LOADING SCREEN MODAL */}
+      {openingCourseTitle !== null && (
+        <LoadingModal variant="modal" message={`Opening ${openingCourseTitle}...`} />
+      )}
+
       {isLoadingAcademy && (
         <LoadingModal type="academy" />
       )}

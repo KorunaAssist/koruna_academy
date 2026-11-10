@@ -24,6 +24,6 @@ export async function persistProgress(writer: ProgressWriter): Promise<void> {
 
 export function learnerProgressFields(row: Record<string, unknown>): Record<string, unknown> {
   const fields = ['progress_percent', 'completed_lessons', 'quiz_score', 'quiz_attempts',
-    'learning_hours', 'last_viewed_at', 'practical_notes'];
+    'learning_hours', 'last_viewed_at', 'practical_notes', 'quiz_history'];
   return Object.fromEntries(fields.filter(key => key in row).map(key => [key, row[key]]));
 }

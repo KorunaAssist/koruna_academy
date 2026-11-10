@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { Award, ArrowUpRight, Search, BookOpen, CheckCircle, SlidersHorizontal } from 'lucide-react';
 import type { Course, UserProgress } from '../../services/db';
 import './earnedCertificates.css';
+import { CertificateDocument } from './CertificateDocument';
 
 interface Props {
   courses: Course[];
   progress: UserProgress[];
   learnerName: string;
+  getIssueDate: (course: Course) => string;
   onView: (course: Course) => void;
   onBrowse: () => void;
 }
 
-export function EarnedCertificates({ courses, progress, learnerName, onView, onBrowse }: Props) {
+export function EarnedCertificates({ courses, progress, learnerName, getIssueDate, onView, onBrowse }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('az');
@@ -45,7 +47,7 @@ export function EarnedCertificates({ courses, progress, learnerName, onView, onB
         <div className="earned-grid">
           {visible.map(course => <article className="earned-card" key={course.id}>
             <button className="earned-preview" onClick={() => onView(course)} aria-label={`View certificate for ${course.title}`}>
-              <div className="earned-paper"><Award size={28} /><span>KORUNA ACADEMY</span><strong>Certificate of Completion</strong><small>PROUDLY PRESENTED TO</small><b>{learnerName}</b><i>{course.title}</i><div className="earned-paper-line" /><CheckCircle size={18} /></div>
+              <CertificateDocument recipientName={learnerName} displayCourseTitle={course.title} displayTrainerName={course.trainer?.trim() || 'Koruna Academy Trainer'} displayIssueDate={getIssueDate(course)} />
               <span className="earned-preview-action">View certificate <ArrowUpRight size={15} /></span>
             </button>
             <div className="earned-card-body"><div className="earned-card-meta"><span>{course.category || 'Professional learning'}</span><span className="earned-complete"><CheckCircle size={13} /> Completed</span></div><h4>{course.title}</h4><p>Issued by Koruna Academy</p><button className="earned-view" onClick={() => onView(course)}>View certificate <ArrowUpRight size={17} /></button></div>

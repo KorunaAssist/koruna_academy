@@ -36,7 +36,7 @@ export function CareerPathDetails({path,workspace,userSession,courses,userProgre
   const nextCourse = nextIds.map(id => findAvailable(id)).find(Boolean);
   const currentIndex = model.current ? model.stages.findIndex(stage => stage.id===model.current!.id) : -1;
   const nextStage = currentIndex>=0 ? model.stages[currentIndex+1] : undefined;
-  return <section className="lp-stack" aria-label={`${path.name} career stages`}>
+  return <section className="lp-stack mc-details" aria-label={`${path.name} career stages`}>
     <div className="lp-panel lp-stack">
       <div className="lp-toolbar"><h2>{path.name}</h2><strong>{model.percent}% training complete</strong></div>
       <p className="lp-muted">{path.description}</p>
@@ -54,8 +54,8 @@ export function CareerPathDetails({path,workspace,userSession,courses,userProgre
       {!model.ready && !nextCourse && unmet.some(r => !r.available) && <p className="lp-muted">Some requirements are unavailable or have no lessons configured. Contact your admin or trainer.</p>}
       {!model.ready && !nextCourse && unmet.some(r => r.available) && <p className="lp-muted">Ask your team leader or trainer to assign the required courses or prerequisites. Selecting a career goal does not assign training.</p>}
     </div>
-    <ol className="cp-stages">{model.stages.map((stage,index) => <li className="lp-panel lp-stack" key={stage.id}>
-      <div className="lp-toolbar"><h3>{index+1}. {stage.title}</h3><span className={`lp-badge ${stage.status==='Completed' ? 'published' : ''}`}>
+    <ol className="cp-stages">{model.stages.map((stage,index) => <li className={`lp-panel lp-stack mc-stage ${stage.status==='Completed' ? 'complete' : stage.status==='Locked' ? 'locked' : 'current'}`} key={stage.id}>
+      <div className="lp-toolbar"><h3><span className="mc-stage-number">{stage.status==='Completed' ? <Check size={18}/> : stage.status==='Locked' ? <Lock size={16}/> : String(index+1).padStart(2,'0')}</span>{stage.title}</h3><span className={`lp-badge ${stage.status==='Completed' ? 'published' : ''}`}>
         {stage.status==='Completed' ? <Check size={14}/> : stage.status==='Locked' ? <Lock size={14}/> : null} {stage.status}</span></div>
       {stage.description && <p className="lp-muted">{stage.description}</p>}
       <progress max={100} value={stage.percent} aria-label={`${stage.title} training progress`}/>

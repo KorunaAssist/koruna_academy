@@ -37,6 +37,7 @@ interface AdminNavItem {
 
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'quiz_scores', label: 'Employee Quiz Scores', icon: FileText },
   { id: 'team_reports', label: 'Team Reports', icon: BarChart3, pageTab: 'team_reports' },
   { id: 'teams', label: 'Manage Teams', icon: Users },
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },

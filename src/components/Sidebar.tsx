@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Bell,
   SlidersHorizontal,
   X,
   LayoutDashboard,
@@ -265,25 +264,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </nav>
 
-        {/* BOTTOM SIDEBAR FOOTER: Notifications & Profile & Settings */}
+        {/* BOTTOM SIDEBAR FOOTER: Profile & Settings */}
         <div className="koruna-sidebar-footer" style={{ padding: '0.65rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-          <button
-            className={`koruna-sidebar-item ${activeTab === 'notifications' && !studyingCourse ? 'active' : ''}`}
-            onClick={() => {
-              setStudyingCourse(null);
-              onTabChange('notifications');
-              setIsMobileSidebarOpen(false);
-            }}
-          >
-            <Bell size={18} className="koruna-sidebar-item-icon" style={{ strokeWidth: 1.75 }} />
-            <span>Notifications</span>
-          </button>
-
           <button
             className={`koruna-sidebar-item ${(activeTab === 'settings' || activeTab === 'profile') && !studyingCourse ? 'active' : ''}`}
             onClick={() => {
               setStudyingCourse(null);
-              onTabChange('settings');
+              onTabChange('profile');
               setIsMobileSidebarOpen(false);
             }}
           >

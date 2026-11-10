@@ -1,3 +1,4 @@
+import { CertificateDocument } from './CertificateDocument';
 import React, { useEffect, useState } from 'react';
 import { Award, Download, Share2, CheckCircle2, X } from 'lucide-react';
 import type { Course } from '../../services/db';
@@ -58,6 +59,42 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
 
   const handleDone = () => {
     setShowDoneModal(true);
+  };
+
+  const handleDownloadPdf = async () => {
+    const certificate = document.getElementById('printable-certificate');
+    if (!certificate) return;
+
+    // Print an isolated document so course layouts and modal styles cannot enter the PDF.
+    const frame = document.createElement('iframe');
+    frame.title = 'Certificate PDF';
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1123px;height:794px;border:0;';
+    document.body.appendChild(frame);
+    try {
+      const printDocument = frame.contentDocument;
+      const printWindow = frame.contentWindow;
+      if (!printDocument || !printWindow) throw new Error('Unable to prepare certificate.');
+      printDocument.open();
+      printDocument.write(`<!doctype html><html><head><title>Certificate</title><style>
+        @page { size: A4 landscape; margin: 10mm; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: white; font-family: Inter, system-ui, sans-serif; }
+        body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        #printable-certificate { width: 100% !important; max-width: none !important; border-radius: 0 !important; box-shadow: none !important; break-inside: avoid; }
+      </style></head><body></body></html>`);
+      printDocument.close();
+      printDocument.body.appendChild(certificate.cloneNode(true));
+      await Promise.all(Array.from(printDocument.images).map(img => img.decode()));
+      await printDocument.fonts.ready;
+      await new Promise<void>(resolve => printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(() => resolve())));
+      printWindow.addEventListener('afterprint', () => frame.remove(), { once: true });
+      printWindow.focus();
+      printWindow.print();
+    } catch (error) {
+      frame.remove();
+      console.error('Unable to print certificate:', error);
+      showToast?.('Unable to prepare the certificate PDF. Please try again.');
+    }
   };
 
   const handleDoneModalContinue = () => {
@@ -189,141 +226,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
       </div>
 
       {/* ── Certificate Card Container ── */}
-      <div
-        id="printable-certificate"
-        style={{
-          width: '100%',
-          maxWidth: '960px',
-          borderRadius: '24px',
-          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04)',
-          position: 'relative',
-          overflow: 'hidden',
-          background: '#ffffff'
-        }}
-      >
-        {/* Base Image Template */}
-        <img
-          src="/Certificate.png"
-          alt="Certificate Template"
-          style={{
-            width: '100%',
-            height: 'auto',
-            display: 'block',
-            userSelect: 'none'
-          }}  
-        />
-
-        {/* ── Dynamic Text Overlays ── */}
-
-        {/* 1. Recipient Name Overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '37.3%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '68%',
-          textAlign: 'center',
-          background: '#ffffff',
-          padding: '0.15rem 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{
-            fontSize: 'clamp(1.5rem, 3.8vw, 2.75rem)',
-            fontWeight: 800,
-            color: '#b8185c',
-            lineHeight: 1.15,
-            letterSpacing: '-0.01em',
-            fontFamily: 'Inter, system-ui, sans-serif'
-          }}>
-            {recipientName}
-          </span>
-        </div>
-
-        {/* 2. Course Title Overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '67.2%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '65%',
-          textAlign: 'center',
-          background: '#ffffff',
-          padding: '0.1rem 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{
-            fontSize: 'clamp(0.9rem, 1.9vw, 1.35rem)',
-            fontWeight: 800,
-            color: '#111827',
-            lineHeight: 1.25,
-            fontFamily: 'Inter, system-ui, sans-serif'
-          }}>
-            {displayCourseTitle}
-          </span>
-        </div>
-
-        {/* 3. Trainer Overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '82.5%',
-          left: '26%',
-          transform: 'translateX(-50%)',
-          width: '24%',
-          textAlign: 'center',
-          background: '#ffffff',
-          padding: '0.1rem 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{
-            fontSize: 'clamp(0.75rem, 1.3vw, 0.95rem)',
-            fontWeight: 700,
-            color: '#111827',
-            fontFamily: 'Inter, system-ui, sans-serif'
-          }}>
-            {displayTrainerName}
-          </span>
-        </div>
-
-        {/* Cover the certificate-number label embedded in the template. */}
-        <div aria-hidden="true" style={{
-          position: 'absolute',
-          top: '81%',
-          left: '36%',
-          width: '28%',
-          height: '13%',
-          background: '#ffffff'
-        }} />
-
-        {/* 5. Completion Date Overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '82.5%',
-          left: '74%',
-          transform: 'translateX(-50%)',
-          width: '24%',
-          textAlign: 'center',
-          background: '#ffffff',
-          padding: '0.1rem 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <span style={{
-            fontSize: 'clamp(0.75rem, 1.3vw, 0.95rem)',
-            fontWeight: 700,
-            color: '#111827',
-            fontFamily: 'Inter, system-ui, sans-serif'
-          }}>
-            {displayIssueDate}
-          </span>
-        </div>
-      </div>
+      <CertificateDocument recipientName={recipientName} displayCourseTitle={displayCourseTitle} displayTrainerName={displayTrainerName} displayIssueDate={displayIssueDate} printable />
 
       {/* ── Bottom Action Buttons ── */}
       <div
@@ -363,7 +266,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
 
         {/* Download PDF Button */}
         <button
-          onClick={() => window.print()}
+          onClick={handleDownloadPdf}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

@@ -301,6 +301,7 @@ export const LessonViewer: React.FC<LessonViewerProps> = ({
               <iframe
                 ref={iframeRef}
                 src={parsedVideo.embedUrl}
+                referrerPolicy="strict-origin-when-cross-origin"
                 title={lesson.title}
                 frameBorder="0"
                 loading="lazy"

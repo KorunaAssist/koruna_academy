@@ -61,6 +61,7 @@ export interface UserProgress {
   completedLessons: string[]; // Lesson IDs
   quizScore?: number; // Highest quiz score percent
   quizAttempts: number;
+  quizHistory?: { attempt: number; score: number; submittedAt: string }[];
   learningHours?: number; // Total accumulated learning hours
   practicalStatus: 'none' | 'pending' | 'approved' | 'rejected';
   practicalNotes?: string;
@@ -491,6 +492,7 @@ const mapDBProgress = (db: any): UserProgress => ({
   completedLessons: typeof db.completed_lessons === 'string' ? JSON.parse(db.completed_lessons) : (db.completed_lessons || []),
   quizScore: db.quiz_score !== null && db.quiz_score !== undefined ? Number(db.quiz_score) : undefined,
   quizAttempts: Number(db.quiz_attempts || 0),
+  quizHistory: db.quiz_history ?? undefined,
   learningHours: db.learning_hours !== null && db.learning_hours !== undefined ? Number(db.learning_hours) : (db.learningHours !== undefined ? Number(db.learningHours) : undefined),
   practicalStatus: db.practical_status || 'none',
   practicalNotes: db.practical_notes || undefined,
@@ -515,6 +517,7 @@ const mapProgressToDB = (p: UserProgress) => {
     due_date: p.dueDate || null,
     assigned_by: p.assignedBy || null
   };
+  if (p.quizHistory !== undefined) obj.quiz_history = p.quizHistory;
   if (p.learningHours !== undefined && p.learningHours !== null) {
     obj.learning_hours = p.learningHours;
   }
@@ -1100,6 +1103,15 @@ export const dbService = {
   },
 
   // --- USER PROGRESS ---
+  async getQuizScoreProgress(): Promise<UserProgress[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.from('user_progress').select('*');
+      if (error) throw new Error('Unable to load quiz scores. Please try again.');
+      return (data || []).map(mapDBProgress);
+    }
+    return this.getProgressList();
+  },
+
   getProgressList(): UserProgress[] {
     const rawList = getStorageItem<UserProgress[]>('koruna_progress', []);
     const filtered = filterStaticSeeds(rawList);
@@ -1359,6 +1371,7 @@ export const dbService = {
       completedLessons: existingProg ? existingProg.completedLessons : [],
       quizScore: existingProg ? existingProg.quizScore : undefined,
       quizAttempts: existingProg ? existingProg.quizAttempts : 0,
+      quizHistory: existingProg?.quizHistory,
       practicalStatus: existingProg ? existingProg.practicalStatus : 'none',
       practicalNotes: existingProg ? existingProg.practicalNotes : undefined,
       overdue: false,
@@ -1447,6 +1460,7 @@ export const dbService = {
         completedLessons: existingProg.completedLessons,
         quizScore: existingProg.quizScore,
         quizAttempts: existingProg.quizAttempts,
+        quizHistory: existingProg.quizHistory,
         practicalStatus: existingProg.practicalStatus,
         practicalNotes: existingProg.practicalNotes,
         overdue: false,

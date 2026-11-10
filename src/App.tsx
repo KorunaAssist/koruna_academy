@@ -6,6 +6,7 @@ import { SessionWarningModal } from './components/SessionWarningModal';
 import { LoadingModal } from './components/LoadingModal';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
+import { usePageHistory } from './hooks/usePageHistory';
 import { safeTab,defaultTab } from './services/authorization';
 import {
   getCurrentUserSession,
@@ -35,7 +36,8 @@ export function App() {
     | 'team_reports'
     | 'admin_suite'
     | 'notifications'
-    | 'settings';
+    | 'settings'
+    | 'profile';
   const [recoveryRoute, setRecoveryRoute] = useState(() => window.location.pathname.replace(/\/$/, '') === '/reset-password');
   const [currentView, setCurrentView] = useState<'login' | 'signup' | 'forgot-password' | 'dashboard'>('login');
   const [activeTab, setActiveTabState] = useState<ActiveTabType>(() => {
@@ -48,21 +50,25 @@ export function App() {
     return 'dashboard';
   });
 
-  const setActiveTab = (tab: ActiveTabType) => {
+  const setActiveTab = useCallback((tab: ActiveTabType) => {
     setActiveTabState(tab);
     try {
       localStorage.setItem('koruna_active_tab', tab);
     } catch (e) {
       // Ignore storage errors
     }
-  };
+  }, []);
 
   const [userSession, setUserSession] = useState<UserSessionData | null>(null);
   const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(null);
   const [hasCheckedAuthSession, setHasCheckedAuthSession] = useState(false);
 
+  const restorePage = useCallback((tab: string) => setActiveTab(tab as ActiveTabType), [setActiveTab]);
+  usePageHistory(userSession, hasCheckedAuthSession && currentView === 'dashboard' && !recoveryRoute, activeTab, restorePage);
+
   const getDefaultTabForUser = (user: UserSessionData, savedTab: ActiveTabType | null): ActiveTabType => {
-    return defaultTab(user.role,savedTab) as ActiveTabType;
+    const requestedPage = new URLSearchParams(window.location.search).get('page');
+    return (requestedPage ? safeTab(user.role, requestedPage) : defaultTab(user.role,savedTab)) as ActiveTabType;
   };
 
   // Check for persisted expiration notice on initial load
@@ -214,6 +220,7 @@ export function App() {
           onTabChange={(tab) => setActiveTab(safeTab(userSession.role, tab) as ActiveTabType)}
           key={`${userSession.id || userSession.email}:${userSession.role}`}
           onSignOut={handleSignOut}
+          onProfileUpdated={setUserSession}
         />
       )}
     </div>

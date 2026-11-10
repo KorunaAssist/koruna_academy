@@ -1,4 +1,5 @@
 import React from 'react';
+import { EmployeeQuizScores } from './EmployeeQuizScores';
 import {
   Trash2,
   RefreshCw,
@@ -488,6 +489,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
       {activeInnerTab === 'career_paths' && <CareerPathsManager key={userSession.id || userSession.email} userSession={userSession} courses={allCourses} />}
       {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
+      {activeInnerTab === 'quiz_scores' && <EmployeeQuizScores users={users} courses={allCourses} />}
       {activeInnerTab === 'teams' && <TeamReportsView key="admin-team-management" userSession={userSession} initialTab="teams" onChanged={loadPlatformData} />}
 
       {activeInnerTab === 'knowledge_hub' && <KnowledgeHubManagerView userSession={userSession} showToast={showToast} />}
