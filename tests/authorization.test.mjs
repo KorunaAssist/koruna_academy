@@ -42,3 +42,12 @@ test('permissions are independent values and invalid profile roles fail to emplo
   for (const role of [null, undefined, {}, 'owner', 'ADMIN']) assert.equal(profileRole(role), 'employee');
   for (const role of USER_ROLES) assert.equal(profileRole(role), role);
 });
+
+
+test('My Courses stays in the learner view for every role', () => {
+  for (const role of USER_ROLES) {
+    assert.equal(canAccessTab(role, 'my_courses'), true);
+    assert.equal(safeTab(role, 'my_courses'), 'my_courses');
+    assert.equal(canAccessAdminTab(role, 'my_courses'), false);
+  }
+});

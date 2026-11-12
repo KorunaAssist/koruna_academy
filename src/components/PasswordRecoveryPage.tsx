@@ -32,7 +32,7 @@ export function PasswordRecoveryPage({ mode, onBack }: { mode: 'request' | 'rese
     inFlight.current = true;
     setPhase('verifying');
     const result = await passwordRecovery.verifyLink();
-    if (result.success) setPhase('reset');
+    if (result.success === true) setPhase('reset');
     else { setError(result.message); setPhase('invalid'); }
     inFlight.current = false;
   }
@@ -47,19 +47,19 @@ export function PasswordRecoveryPage({ mode, onBack }: { mode: 'request' | 'rese
     try {
       if (phase === 'request') {
         const result = await passwordRecovery.request(email);
-        if (result.success) { setNotice(RECOVERY_MESSAGE); setCooldown(60); }
+        if (result.success === true) { setNotice(RECOVERY_MESSAGE); setCooldown(60); }
         else setError(result.message);
       } else if (phase === 'reset') {
         const result = await passwordRecovery.complete(password, confirmation);
         if (result.passwordUpdated) { setPassword(''); setConfirmation(''); }
-        if (result.success) setPhase('done');
+        if (result.success === true) setPhase('done');
         else {
           setError(result.message);
           if (result.passwordUpdated) setPhase('revocation');
         }
       } else if (phase === 'revocation') {
         const result = await passwordRecovery.retrySignOut();
-        if (result.success) setPhase('done');
+        if (result.success === true) setPhase('done');
         else setError(result.message);
       }
     } finally {

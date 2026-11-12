@@ -40,6 +40,9 @@ before(async () => {
   const migration = await readFile(new URL('../supabase/migrations/202610150001_authorization.sql', import.meta.url), 'utf8');
   await db.exec(migration);
   await db.exec(migration); // Repeatable deployment must preserve enforcement.
+  const trainerMigration = await readFile(new URL('../supabase/migrations/202611100002_course_creator_trainer.sql', import.meta.url), 'utf8');
+  await db.exec(trainerMigration);
+  await db.exec(trainerMigration);
   for (const [name, id] of Object.entries(ids)) {
     await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)', [id, `${name}@example.com`, JSON.stringify({ full_name: name, role: 'admin' })]);
   }
@@ -53,6 +56,24 @@ before(async () => {
   await db.exec("INSERT INTO public.practical_submissions(id,user_email,user_name,course_id,course_title,submission_text,date_submitted) VALUES('submission','employee@example.com','Employee','a','A','Work','2026-10-15')");
 });
 after(async () => { await db.close(); });
+
+test('new courses store the authenticated creator as trainer and preserve trainer on upsert', async () => {
+  for (const user of ['trainer', 'admin']) {
+    const id = `creator-trainer-${user}`;
+    const { rows: [course] } = await asUser(user,
+      "INSERT INTO public.courses(id,title,trainer,category,code) VALUES($1,$2,$3,'Training',$1) RETURNING created_by,trainer",
+      [id, 'Created course', 'Someone else']);
+    assert.equal(course.created_by, ids[user]);
+    assert.equal(course.trainer, user);
+
+    const { rows: [updated] } = await asUser('admin2',
+      `INSERT INTO public.courses(id,title,trainer,category,code) VALUES($1,$2,$3,'Training',$1)
+       ON CONFLICT(id) DO UPDATE SET title=excluded.title,trainer=excluded.trainer
+       RETURNING created_by,trainer`, [id, 'Updated course', course.trainer]);
+    assert.equal(updated.created_by, ids[user]);
+    assert.equal(updated.trainer, user);
+  }
+});
 
 test('assigned learners can save lessons and completion without changing staff fields', async () => {
   await db.exec(`UPDATE public.user_progress SET due_date='2026-12-01', assigned_by='trainer@example.com'

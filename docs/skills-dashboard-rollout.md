@@ -19,6 +19,29 @@ are preserved, and new lessons receive stable IDs when saved.
 
 ## Workflow
 
+### Skills by job role
+
+After the employee skills seed, apply
+`supabase/migrations/202611110002_role_skills.sql`. This creates admin-managed
+job roles and assigns the 15 seeded workplace skills to **Loan Processor**.
+Job roles here are separate from account permissions such as admin or trainer.
+
+Open **Admin Suite → Skills by Role** to add a role, select existing skills, or
+create a new skill and select it. Click **Save Role Skills** to save the role's
+selections. A skill may be shared by multiple roles. In course creation, use
+**Filter skills by role** to find the relevant skills; changing filters preserves
+selected course skills. Role membership does not automatically award skills:
+employees still earn progress through the linked course lessons.
+
+Apply `supabase/migrations/202611110001_employee_course_skills.sql` to an existing
+skills-enabled database to add the 15 employee workplace skills to the course
+editor's **Skills taught by this course** selections. The seed is safe to repeat
+and preserves existing matching skills, including their archive status. Restore
+an archived skill in Skills Catalogue if it should be selectable on new courses.
+The prerequisite `202610260001_skills_dashboard.sql` is referenced by this guide
+but is currently missing from this checkout; it must already be installed in the
+target database before applying this seed.
+
 1. As an admin, open **Admin Suite → Skills Catalogue → Create Skill**. Add a
    name such as Servicing or Loan Processing and an optional description.
 2. As an admin or the owning trainer, create/edit a course. In **Info → Skills

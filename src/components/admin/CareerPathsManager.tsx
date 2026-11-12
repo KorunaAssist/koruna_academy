@@ -21,6 +21,7 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
   const [description,setDescription] = useState('');
   const [stages,setStages] = useState<CareerStage[]>([]);
   const [status,setStatus] = useState('all');
+  const [courseSearch,setCourseSearch] = useState<Record<string,string>>({});
   useEffect(() => {
     if (!canManage) return;
     let active=true;
@@ -34,7 +35,7 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
   const owned = data?.paths.filter(path => userSession.role==='admin' || path.created_by===userSession.id) || [];
   const edit = (path?: CareerPath,copy=false) => {
     setId(copy ? undefined : path?.id);setName(path?.name || '');setDescription(path?.description || '');
-    setStages(path ? structuredClone(path.stages) : [newStage()]);setEditing(true);setError('');setNotice('');
+    setStages(path ? structuredClone(path.stages) : [newStage()]);setCourseSearch({});setEditing(true);setError('');setNotice('');
   };
   const updateStage = (index: number,changes: Partial<CareerStage>) => setStages(rows => rows.map((row,i) => i===index ? {...row,...changes} : row));
   const toggle = (values: string[],value: string) => values.includes(value) ? values.filter(id => id!==value) : [...values,value];
@@ -44,6 +45,9 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const publish = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value==='publish';
+    if (publish && stages.some(stage => !stage.course_ids.length && !stage.roadmap_version_ids.length && !stage.skills.length)) {
+      setError('Add at least one course, learning roadmap, or skill target to every role before publishing.');return;
+    }
     setBusy(true);setError('');setNotice('');
     try {
       await careerPathService.save({id,name,description,stages,publish});setEditing(false);
@@ -58,8 +62,8 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
     finally {setBusy(false);}
   };
   return <section className="lp-workspace" aria-labelledby="career-manager-title">
-    <header className="lp-toolbar"><div><h1 id="career-manager-title">Career Paths</h1><p className="lp-muted">Define career stages using courses, published roadmaps, and skill targets.</p></div>
-      {!editing && <button className="lp-button primary" disabled={loading || busy || !data} onClick={() => edit()}>Create Career Path</button>}
+    <header className="lp-toolbar"><div><h1 id="career-manager-title">Career Paths</h1><p className="lp-muted">Add career roles and the courses and skills employees need to prepare for each promotion.</p></div>
+      {!editing && <button className="lp-button primary" disabled={loading || busy || !data} onClick={() => edit()}>Add Career Path</button>}
     </header>
     {error && <div className="lp-alert" role="alert">{error}</div>}
     {notice && <p className="lp-notice" role="status">{notice}</p>}
@@ -70,20 +74,25 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
       <h2>{id ? 'Edit Career Path Draft' : 'New Career Path'}</h2>
       <label className="lp-field">Career path name<input required maxLength={160} value={name} disabled={busy} placeholder="Loan Processor" onChange={e => setName(e.target.value)}/></label>
       <label className="lp-field">Description<textarea value={description} disabled={busy} onChange={e => setDescription(e.target.value)}/></label>
+      <div className="cp-admin-guide"><strong>Build a role progression</strong><p>Add roles in career order, then select multiple required courses and skill targets for each one. Employees complete these requirements to unlock training readiness for that role.</p></div>
+      {!!stages.length && <ol className="cp-admin-progression" aria-label="Role progression preview">{stages.map((stage,index) => <li key={stage.id}><small>ROLE {index+1}</small><strong>{stage.title || 'Untitled role'}</strong><span>{stage.course_ids.length} courses · {stage.skills.length} skill targets</span></li>)}</ol>}
       {stages.map((stage,index) => <fieldset className="lp-stack" key={stage.id} disabled={busy}>
-        <legend>Stage {index+1}</legend>
+        <legend>Role {index+1}{stage.title ? `: ${stage.title}` : ''}</legend>
         <div className="lp-actions">
           <button className="lp-button" type="button" disabled={index===0} onClick={() => move(index,-1)}>Move Up</button>
           <button className="lp-button" type="button" disabled={index===stages.length-1} onClick={() => move(index,1)}>Move Down</button>
-          <button className="lp-button" type="button" onClick={() => setStages(rows => rows.filter(row => row.id!==stage.id))}>Remove Stage</button>
+          <button className="lp-button" type="button" onClick={() => setStages(rows => rows.filter(row => row.id!==stage.id))}>Remove Role</button>
         </div>
-        <label className="lp-field">Stage title<input required maxLength={160} value={stage.title} placeholder="Junior Loan Processor" onChange={e => updateStage(index,{title:e.target.value})}/></label>
-        <label className="lp-field">Stage description<textarea value={stage.description} onChange={e => updateStage(index,{description:e.target.value})}/></label>
-        <details open={!!stage.course_ids.length}><summary>Required courses ({stage.course_ids.length})</summary><div className="cp-options">
-          {courses.map(course => <label className="lp-check" key={course.id}><input type="checkbox" checked={stage.course_ids.includes(course.id)} onChange={() => updateStage(index,{course_ids:toggle(stage.course_ids,course.id)})}/>{course.title}</label>)}
+        <label className="lp-field">Role title<input required maxLength={160} value={stage.title} placeholder="Senior Loan Processing Officer" onChange={e => updateStage(index,{title:e.target.value})}/></label>
+        <label className="lp-field">Role description<textarea value={stage.description} onChange={e => updateStage(index,{description:e.target.value})}/></label>
+        <div className="lp-stack"><h3>Required courses ({stage.course_ids.length} selected)</h3><p className="lp-muted">Select all courses needed for this role. You can add multiple courses.</p>
+        <label className="lp-field">Search courses<input type="search" value={courseSearch[stage.id] || ''} placeholder="Search courses to add..." onChange={e => setCourseSearch(previous => ({...previous,[stage.id]:e.target.value}))}/></label><div className="cp-options">
+          {courses.filter(course => course.title.toLowerCase().includes((courseSearch[stage.id] || '').toLowerCase())).map(course => <label className="lp-check" key={course.id}><input type="checkbox" checked={stage.course_ids.includes(course.id)} onChange={() => updateStage(index,{course_ids:toggle(stage.course_ids,course.id)})}/>{course.title}</label>)}
+          {!!courses.length && !courses.some(course => course.title.toLowerCase().includes((courseSearch[stage.id] || '').toLowerCase())) && <p>No courses match your search.</p>}
           {!courses.length && <p>No courses available. Create courses first.</p>}
           {stage.course_ids.filter(id => !courses.some(c => c.id===id)).map(id => <label className="lp-check" key={id}><input type="checkbox" checked onChange={() => updateStage(index,{course_ids:toggle(stage.course_ids,id)})}/>Unavailable course — remove this requirement</label>)}
-        </div></details>
+        </div>
+        {!!stage.course_ids.length && <ul className="cp-admin-selected" aria-label={`Selected courses for role ${index+1}`}>{stage.course_ids.map(courseId => <li key={courseId}><span>{courses.find(course => course.id===courseId)?.title || 'Unavailable course'}</span><button type="button" className="lp-button" onClick={() => updateStage(index,{course_ids:toggle(stage.course_ids,courseId)})} aria-label={`Remove ${courses.find(course => course.id===courseId)?.title || 'unavailable course'} from role ${index+1}`}>Remove</button></li>)}</ul>}</div>
         <details open={!!stage.roadmap_version_ids.length}><summary>Required learning roadmaps ({stage.roadmap_version_ids.length})</summary><div className="cp-options">
           {data.roadmaps.versions.filter(v => v.status==='published' || stage.roadmap_version_ids.includes(v.id)).map(version => <label className="lp-check" key={version.id}>
             <input type="checkbox" checked={stage.roadmap_version_ids.includes(version.id)} onChange={() => updateStage(index,{roadmap_version_ids:toggle(stage.roadmap_version_ids,version.id)})}/>
@@ -101,9 +110,9 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
           })}
           {!data.skills.length && <p>No skills available. An admin can create them in Skills Catalogue.</p>}
         </div></details>
-        <small>Every published stage needs at least one requirement. All requirements in a stage must be met.</small>
+        <small>Every published role needs at least one requirement. All requirements must be met to complete training for this role.</small>
       </fieldset>)}
-      <div><button className="lp-button" type="button" disabled={busy || stages.length>=20} onClick={() => setStages(rows => [...rows,newStage()])}>Add Stage</button></div>
+      <div><button className="lp-button" type="button" disabled={busy || stages.length>=20} onClick={() => setStages(rows => [...rows,newStage()])}>+ Add Role</button></div>
       <div className="lp-actions"><button className="lp-button" type="submit" value="draft" disabled={busy}>Save Draft</button>
         <button className="lp-button primary" type="submit" value="publish" disabled={busy || !stages.length}>Publish Career Path</button>
         <button className="lp-button" type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button></div>
@@ -114,6 +123,7 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
         <ol>{path.stages.map(stage => <li key={stage.id}>{stage.title} <small>{stage.course_ids.length} courses · {stage.roadmap_version_ids.length} roadmaps · {stage.skills.length} skill targets</small></li>)}</ol>
         <div className="lp-actions">
           {path.status==='draft' && <button className="lp-button primary" disabled={busy} onClick={() => edit(path)}>Edit Draft</button>}
+          <button className="lp-button" disabled={busy || path.stages.length>=20} onClick={() => {edit(path,path.status!=='draft');setStages([...structuredClone(path.stages),newStage()]);}}>Add Role{path.status!=='draft' ? ' in New Draft' : ''}</button>
           <button className="lp-button" disabled={busy} onClick={() => edit(path,true)}>Copy to New Draft</button>
           {path.status!=='archived' && <button className="lp-button" disabled={busy} onClick={() => archive(path.id)}>Archive</button>}
         </div>

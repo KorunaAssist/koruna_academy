@@ -1,5 +1,4 @@
 import React from 'react';
-import { AssignedCoursesModal } from './AssignedCoursesModal';
 import {
   Award,
   Clock,
@@ -11,9 +10,11 @@ import {
 import type { UserSessionData } from '../../services/auth';
 import type { Course, DatabaseUser, UserProgress } from '../../services/db';
 import { CourseBannerHeader } from '../courses/CourseCard';
+import { isCourseAssigned } from '../../services/courseAccess';
 import { dashboardLearningStats } from '../../services/dashboardLearningStats';
 
 export interface KorunaAcademyDashboardProps {
+  view?: 'dashboard' | 'my_courses';
   userSession: UserSessionData;
   courses: Course[];
   users: DatabaseUser[];
@@ -25,6 +26,7 @@ export interface KorunaAcademyDashboardProps {
 }
 
 export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
+  view = 'dashboard',
   userSession,
   courses,
   users,
@@ -35,31 +37,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   setSearchQuery
 }) => {
   const userName = userSession.name || 'Jessica Timon';
-  const assignedCoursesDialogRef = React.useRef<HTMLDialogElement>(null);
-  const dismissalStorageKey = `koruna:assigned-course-dismissals:${(userSession.email || userSession.id || '').trim().toLowerCase()}`;
-  const savedDismissals = React.useMemo<string[]>(() => {
-    try {
-      const stored: unknown = JSON.parse(localStorage.getItem(dismissalStorageKey) || '[]');
-      return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
-    } catch {
-      return [];
-    }
-  }, [dismissalStorageKey]);
-  const [dismissals, setDismissals] = React.useState({ key: dismissalStorageKey, ids: savedDismissals });
-  const dismissedDoneAssignedCourseIds = dismissals.key === dismissalStorageKey
-    ? dismissals.ids
-    : savedDismissals;
-
-  const dismissCompletedAssignment = (courseId: string) => {
-    const ids = [...new Set([...dismissedDoneAssignedCourseIds, courseId])];
-    try {
-      localStorage.setItem(dismissalStorageKey, JSON.stringify(ids));
-    } catch (error) {
-      console.warn('Unable to save completed assignment dismissal:', error);
-      return;
-    }
-    setDismissals({ key: dismissalStorageKey, ids });
-  };
+  const [completionFilter, setCompletionFilter] = React.useState<'all' | 'incomplete' | 'completed'>('all');
 
   // Helper to find existing course or create a fallback course object for study view
   const getCourseById = (id: string, fallbackTitle: string, category: string): Course => {
@@ -204,9 +182,8 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())
     .slice(0, 3);
 
-  const renderAssignedCourses = (includeDismissed = false, completion?: 'incomplete' | 'completed') => {
-          // The modal also includes the learner's finished courses, even when
-          // their original assignment metadata is no longer present.
+  const renderAssignedCourses = (completion?: 'incomplete' | 'completed') => {
+          // Only assignments belonging to the signed-in learner appear here.
           const assignedCourses = courses.filter((c) => {
             const prog = userProgress.find(
               (p) => p.courseId === c.id && (
@@ -214,23 +191,11 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
               )
             );
 
-            if (!includeDismissed && prog?.progressPercent === 100 && dismissedDoneAssignedCourseIds.includes(c.id)) {
-              return false;
-            }
-
-            const hasAssignedProgress = !!(prog && (prog.dueDate || prog.assignedBy));
-            const hasAssignedCourseFlag = (
-              !!c.assignedUsers && c.assignedUsers.some((a) =>
-                (userSession.id && String(a.userId).toLowerCase().trim() === String(userSession.id).toLowerCase().trim()) ||
-                (userSession.email && String(a.userId).toLowerCase().trim() === currentUserEmail)
-              )
-            );
-
-            const hasFinishedCourse = includeDismissed && !!prog && prog.progressPercent >= 100;
+            const isAssigned = isCourseAssigned(c, [currentUserEmail, userSession.id || '', account?.id || '', String(account?.userId || '')], userProgs);
             const isComplete = !!prog && prog.progressPercent >= 100;
             if (completion === 'completed' && !isComplete) return false;
             if (completion === 'incomplete' && isComplete) return false;
-            return hasAssignedProgress || hasAssignedCourseFlag || hasFinishedCourse;
+            return isAssigned;
           });
 
           if (assignedCourses.length === 0) {
@@ -256,7 +221,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
           return (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-              {assignedCourses.map((course) => {
+              {(view === 'dashboard' ? assignedCourses.slice(0, 3) : assignedCourses).map((course) => {
                 const prog = userProgress.find((p) => p.courseId === course.id && (currentUserEmail && p.userEmail.toLowerCase().trim() === currentUserEmail));
                 const percent = prog ? prog.progressPercent : 0;
                 const isStarted = percent > 0;
@@ -297,7 +262,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                       {course.title}
                     </h4>
 
-                    {includeDismissed && isComplete && (
+                    {isComplete && (
                       <span style={{ alignSelf: 'flex-start', marginBottom: '0.85rem', padding: '0.25rem 0.6rem', borderRadius: '50px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.75rem', fontWeight: 700 }}>
                         Completed
                       </span>
@@ -337,13 +302,6 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
                       <button
                         onClick={() => {
-                          if (isComplete) {
-                            dismissCompletedAssignment(course.id);
-                            if (includeDismissed) assignedCoursesDialogRef.current?.close();
-                            return;
-                          }
-
-                          assignedCoursesDialogRef.current?.close();
                           onStartStudy(course, prog?.applicationId);
                         }}
                         style={{
@@ -358,7 +316,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                           cursor: 'pointer'
                         }}
                       >
-                        {isComplete ? 'Done' : isStarted ? 'Continue' : 'Start'}
+                        {isComplete ? 'Review' : isStarted ? 'Continue' : 'Start'}
                       </button>
                     </div>
                   </div>
@@ -369,12 +327,25 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
   };
 
+  if (view === 'my_courses') {
+    return (
+      <div className="koruna-subview-wrapper">
+        <h1>My Courses</h1>
+        <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Your assigned courses, deadlines, and learning progress.</p>
+        <div role="group" aria-label="Filter courses by completion" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          {(['all', 'incomplete', 'completed'] as const).map(filter => (
+            <button key={filter} type="button" className={completionFilter === filter ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} aria-pressed={completionFilter === filter} onClick={() => setCompletionFilter(filter)}>
+              {{ all: 'All Assigned', incomplete: 'To Do', completed: 'Completed' }[filter]}
+            </button>
+          ))}
+        </div>
+        {renderAssignedCourses(completionFilter === 'all' ? undefined : completionFilter)}
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '1.75rem 2rem 3rem 2rem', backgroundColor: '#f8fafc', minHeight: '100%' }}>
-      <AssignedCoursesModal
-        dialogRef={assignedCoursesDialogRef}
-        renderCourses={(completion) => renderAssignedCourses(true, completion)}
-      />
       {/* HEADER ROW */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -625,14 +596,14 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             Assigned Courses
           </h2>
           <button
-            onClick={() => assignedCoursesDialogRef.current?.showModal()}
+            onClick={() => onTabChange('my_courses')}
             style={{ border: 'none', background: 'none', color: '#be185d', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
           >
             View all
           </button>
         </div>
 
-        {renderAssignedCourses()}
+        {renderAssignedCourses('incomplete')}
       </div>
 
       {/* BOTTOM TWO-COLUMN LAYOUT */}

@@ -23,6 +23,7 @@ export function App() {
     | 'home'
     | 'learn'
     | 'catalog'
+    | 'my_courses'
     | 'knowledge_base'
     | 'feed'
     | 'rewards'

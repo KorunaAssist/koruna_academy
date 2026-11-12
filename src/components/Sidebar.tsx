@@ -63,6 +63,7 @@ const KORUNA_LIFE_NAV: NavParentItem[] = [
 
 const KORUNA_ACADEMY_NAV: NavParentItem[] = [
   { id: 'catalog', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'my_courses', label: 'My Courses', icon: GraduationCap },
   { id: 'catalog_courses', label: 'Course Catalogue', icon: BookOpen },
   { id: 'learning_path', label: 'Learning Path', icon: Route },
   { id: 'progress', label: 'My Progress', icon: PieChart },
@@ -87,6 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAcademyMode = [
     'catalog',
     'catalog_courses',
+    'my_courses',
     'learning_path',
     'progress',
     'certificates',
@@ -130,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
               />
             </div>
-          ) : userSession.role === 'trainer' ? (
+          ) : userSession.role === 'trainer' && activeTab === 'admin_suite' ? (
             <div
               style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
               onClick={() => {

@@ -24,6 +24,7 @@ import { PlatformSettingsView } from './PlatformSettingsView';
 import { CourseCard } from '../courses/CourseCard';
 import { canAccessAdminTab } from '../../services/authorization';
 import { LearningPathsManager } from './LearningPathsManager';
+import { RoleSkillsManager } from './RoleSkillsManager';
 import { SkillsManager } from './SkillsManager';
 import { CareerPathsManager } from './CareerPathsManager';
 import { TeamReportsView } from '../reports/TeamReportsView';
@@ -280,6 +281,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   learning_paths: { title: 'Learning Paths', description: 'Create, publish, and assign course roadmaps.' },
   career_paths: { title: 'Career Paths', description: 'Define career stages, training requirements, and skill targets.' },
   teams: { title: 'Manage Teams', description: 'Assign employees to team leaders for reporting and training supervision.' },
+  role_skills: { title: 'Skills by Role', description: 'Manage the skills employees need for each job role.' },
   skill_catalogue: { title: 'Skills Catalogue', description: 'Define the skills that employees develop through courses and lessons.' },
   users: { title: 'Users', description: 'Manage accounts, roles, and departments.' },
   permissions: { title: 'Permissions', description: 'Choose what each role is allowed to do.' },
@@ -489,7 +491,9 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       {activeInnerTab === 'learning_paths' && <LearningPathsManager userSession={userSession} courses={allCourses} users={users} />}
       {activeInnerTab === 'career_paths' && <CareerPathsManager key={userSession.id || userSession.email} userSession={userSession} courses={allCourses} />}
       {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
+      {activeInnerTab === 'role_skills' && <RoleSkillsManager />}
       {activeInnerTab === 'quiz_scores' && <EmployeeQuizScores users={users} courses={allCourses} />}
+      {activeInnerTab === 'team_reports' && <TeamReportsView key="admin-team-reports" userSession={userSession} onChanged={loadPlatformData} />}
       {activeInnerTab === 'teams' && <TeamReportsView key="admin-team-management" userSession={userSession} initialTab="teams" onChanged={loadPlatformData} />}
 
       {activeInnerTab === 'knowledge_hub' && <KnowledgeHubManagerView userSession={userSession} showToast={showToast} />}

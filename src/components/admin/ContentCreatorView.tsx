@@ -1,3 +1,4 @@
+import { roleSkillsService,type SkillRole } from '../../services/roleSkills';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen, Zap, FileText, CloudUpload, Trash2, RefreshCw, Layers, Plus, Award,
@@ -128,6 +129,9 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [showTips, setShowTips] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
+  const [skillRoles,setSkillRoles] = useState<SkillRole[]>([]);
+  const [skillRoleFilter,setSkillRoleFilter] = useState('');
+  const [roleSkillsError,setRoleSkillsError] = useState('');
   const [skills,setSkills] = useState<Skill[]>([]);
   const [skillsError,setSkillsError] = useState('');
   const [skillsLoading,setSkillsLoading] = useState(true);
@@ -135,6 +139,8 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   useEffect(() => {
     let active = true;
     setSkillsLoading(true);
+    roleSkillsService.load().then(rows => { if (active) { setSkillRoles(rows);setRoleSkillsError(''); } })
+      .catch(() => { if (active) setRoleSkillsError('Role filters are unavailable. Apply the role skills migration and reopen this page.'); });
     skillsService.catalogue().then(rows => { if (active) { setSkills(rows); setSkillsError(''); } })
       .catch(reason => { if (active) setSkillsError(reason instanceof Error ? reason.message : 'Unable to load skills.'); })
       .finally(() => { if (active) setSkillsLoading(false); });
@@ -494,7 +500,13 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
               <p className="cc-muted">Select one or more skills. All lessons contribute by default; adjust each lesson’s skills in the Lessons tab. Each linked lesson has equal weight across all courses teaching that skill.</p>
               {skillsLoading && <p role="status">Loading skill catalogue…</p>}
               {skillsError && <p role="alert">{skillsError} <button type="button" className="cc-btn sm" onClick={() => setSkillsRetry(n => n+1)}>Retry</button></p>}
-              <div className="skill-choice-grid">{skills.filter(s => !s.archived || selectedSkillIds.includes(s.id)).map(skill => <label className="skill-choice" key={skill.id}>
+              {roleSkillsError && <p role="status" className="cc-muted">{roleSkillsError}</p>}
+              <label className="cc-f">Filter skills by role<select value={skillRoleFilter} onChange={e => setSkillRoleFilter(e.target.value)}>
+                <option value="">All roles / all skills</option>
+                {skillRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+              </select></label>
+              <p className="cc-muted">{selectedSkillIds.length} skills selected. Changing the filter keeps your selections.</p>
+              <div className="skill-choice-grid">{skills.filter(s => (!s.archived || selectedSkillIds.includes(s.id)) && (!skillRoleFilter || skillRoles.find(role => role.id === skillRoleFilter)?.skillIds.includes(s.id) || selectedSkillIds.includes(s.id))).map(skill => <label className="skill-choice" key={skill.id}>
                 <input type="checkbox" checked={selectedSkillIds.includes(skill.id)} onChange={e => toggleCourseSkill(skill.id,e.target.checked)}/>
                 <span>{skill.name}{skill.archived ? ' (archived)' : ''}</span>
               </label>)}</div>

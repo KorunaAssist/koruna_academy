@@ -100,6 +100,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const academyTabs = [
       'catalog',
       'catalog_courses',
+      'my_courses',
       'learning_path',
       'progress',
       'certificates',
@@ -395,6 +396,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const existing = progressList.find(p => p.courseId === course.id &&
         (applicationId === undefined || (p.applicationId || 0) === applicationId));
       if (existing && existing.progressPercent >= 100) {
+        studyReturnTabRef.current = ['career', 'career_path', 'my_courses'].includes(activeTab) ? activeTab : 'catalog_courses';
         setStudyingCourse(course);
         setStudyingAssignmentId(existing.applicationId || 0);
         setActiveLessonIdx(-1);
@@ -423,7 +425,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       prog.lastViewedAt = new Date().toISOString();
       await dbService.saveUserProgress(prog);
       await loadPlatformData();
-      studyReturnTabRef.current = activeTab==='career' || activeTab==='career_path' ? activeTab : 'catalog_courses';
+      studyReturnTabRef.current = ['career', 'career_path', 'my_courses'].includes(activeTab) ? activeTab : 'catalog_courses';
       setStudyingCourse(course);
       setStudyingAssignmentId(prog.applicationId || 0);
       setActiveLessonIdx(-1);
@@ -1131,8 +1133,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
 
             {/* TAB 2: KORUNA ACADEMY DASHBOARD */}
-            {activeTab === 'catalog' && (
+            {(activeTab === 'catalog' || activeTab === 'my_courses') && (
               <KorunaAcademyDashboard
+                key={activeTab}
+                view={activeTab === 'my_courses' ? 'my_courses' : 'dashboard'}
                 userSession={userSession}
                 courses={courses}
                 users={users}
