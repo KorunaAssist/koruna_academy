@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type { UserRole } from './auth';
-import { persistProgress, learnerProgressFields } from './progressPersistence';
+import { persistProgress, learnerProgressFields, writeCompatibleProgress } from './progressPersistence';
+import { completionActivityDate } from './certificateDate';
 import { USER_ROLES, isUserRole, rolePermissions } from './authorization';
 
 export interface Lesson {
@@ -501,7 +502,9 @@ const mapDBProgress = (db: any): UserProgress => ({
   dueDate: db.due_date || undefined,
   assignedBy: db.assigned_by || undefined,
   lastViewedAt: db.last_viewed_at || undefined,
-  completedAt: db.completed_at || undefined
+  completedAt: db.completed_at || (Number(db.progress_percent) >= 100
+    ? db.last_viewed_at || db.quiz_history?.at?.(-1)?.submittedAt || db.updated_at
+    : undefined) || undefined
 });
 
 const mapProgressToDB = (p: UserProgress) => {
@@ -1142,6 +1145,12 @@ export const dbService = {
 
   async saveProgress(prog: UserProgress, managed: boolean): Promise<void> {
     if (isSupabaseConfigured()) {
+      const identityQuery = { user_email: prog.userEmail.toLowerCase(), course_id: prog.courseId, application_id: prog.applicationId || 0 };
+      const previous = await supabase.from('user_progress').select('*').match(identityQuery).maybeSingle();
+      if (previous.error) throw new Error('Unable to load course completion date.');
+      const completionDate = completionActivityDate(previous.data ? mapDBProgress(previous.data) : undefined,
+        prog.progressPercent, new Date().toISOString());
+      if (completionDate) prog.lastViewedAt = completionDate;
       const row = mapProgressToDB(prog);
       const { user_email, course_id, application_id, ...managedFields } = row;
       const identity = { user_email, course_id, application_id };
@@ -1151,19 +1160,11 @@ export const dbService = {
           const request = operation === 'update'
             ? supabase.from('user_progress').update(values).match(identity)
             : supabase.from('user_progress').insert({ ...identity, ...values });
-          return request.select('course_id, completed_at');
+          // SELECT * also supports installations predating completed_at.
+          return request.select('*');
         };
-        let { data, error } = await send(fields);
-        // Older installations may lack these optional tracking columns. Never
-        // retry authorization failures or remove protected fields to bypass RLS.
-        if ((error?.code === 'PGRST204' || error?.code === '42703') &&
-            /last_viewed_at|learning_hours/.test(error.message)) {
-          const fallback = { ...fields };
-          delete fallback.last_viewed_at;
-          delete fallback.learning_hours;
-          ({ data, error } = await send(fallback));
-        }
-        if (data?.[0]) prog.completedAt = data[0].completed_at || undefined;
+        const { data, error } = await writeCompatibleProgress(fields, send);
+        if (data?.[0]) prog.completedAt = mapDBProgress(data[0]).completedAt;
         return { count: data?.length || 0, error };
       };
       await persistProgress({ update: () => write('update'), insert: () => write('insert') });

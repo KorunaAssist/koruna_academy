@@ -1,6 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { persistProgress, learnerProgressFields } from '../src/services/progressPersistence.ts';
+import { persistProgress, learnerProgressFields, writeCompatibleProgress } from '../src/services/progressPersistence.ts';
+
+test('missing quiz history retries without losing the finish date or learning hours', async () => {
+  const requests = [];
+  await writeCompatibleProgress({ quiz_history: [], last_viewed_at: '2026-11-13T00:00:00Z', learning_hours: 1 }, async values => {
+    requests.push({ ...values });
+    return { error: requests.length === 1 ? { code: 'PGRST204', message: "Could not find the 'quiz_history' column of 'user_progress' in the schema cache" } : null };
+  });
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], { last_viewed_at: '2026-11-13T00:00:00Z', learning_hours: 1 });
+});
+
+test('compatibility retries each missing field separately and stops on permission failures', async () => {
+  let calls = 0;
+  const result = await writeCompatibleProgress({ quiz_history: [], learning_hours: 1, last_viewed_at: 'date' }, async () => {
+    calls++;
+    return { error: calls === 1 ? { code: '42703', message: 'column "learning_hours" does not exist' }
+      : { code: '42501', message: 'permission denied' } };
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.error.code, '42501');
+});
 
 test('learner writes exclude assignment, identity and approval fields', () => {
   assert.deepEqual(learnerProgressFields({ progress_percent: 50, completed_lessons: ['lesson'],

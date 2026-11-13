@@ -522,6 +522,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       {/* CERTIFICATE TEMPLATE */}
       {activeInnerTab === 'certificate_templates' && (
         <CertificateTemplateView
+          users={users}
+          currentUserId={userSession.id || users.find(user => user.email === userSession.email)?.id || ''}
           certHeader={certHeader}
           setCertHeader={setCertHeader}
           trainerSig={trainerSig}

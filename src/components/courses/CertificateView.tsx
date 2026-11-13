@@ -14,6 +14,7 @@ interface CertificateViewProps {
   onDone?: () => void;
   showToast?: (msg: string) => void;
   isModal?: boolean;
+  showCompletionModal?: boolean;
 }
 
 export const CertificateView: React.FC<CertificateViewProps> = ({
@@ -25,7 +26,8 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
   onBack,
   onDone,
   showToast,
-  isModal = true
+  isModal = true,
+  showCompletionModal = true
 }) => {
   const recipientName = userSession?.name || 'Jessica Timon';
   const displayCertificateId = certificateId || `KA-${course?.code || 'MB'}-2026-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -58,6 +60,10 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
   };
 
   const handleDone = () => {
+    if (!showCompletionModal) {
+      (onDone || onBack)();
+      return;
+    }
     setShowDoneModal(true);
   };
 
@@ -226,7 +232,7 @@ export const CertificateView: React.FC<CertificateViewProps> = ({
       </div>
 
       {/* ── Certificate Card Container ── */}
-      <CertificateDocument recipientName={recipientName} displayCourseTitle={displayCourseTitle} displayTrainerName={displayTrainerName} displayIssueDate={displayIssueDate} printable />
+      <CertificateDocument trainerProfileId={course.createdBy} recipientName={recipientName} displayCourseTitle={displayCourseTitle} displayTrainerName={displayTrainerName} displayIssueDate={displayIssueDate} printable />
 
       {/* ── Bottom Action Buttons ── */}
       <div

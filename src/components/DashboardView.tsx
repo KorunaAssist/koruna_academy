@@ -516,7 +516,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setCompletedCourseModal({ title: c?.title || 'Course' });
       }
     } catch (err) {
-      showToast('Unable to complete course. Please check your progress and try again.');
+      showToast(err instanceof Error ? err.message : 'Unable to complete course. Please check your progress and try again.');
       throw err;
     }
   };
@@ -582,7 +582,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
     } catch (err) {
       console.error('Unable to save quiz:', err);
-      showToast('Unable to save quiz results. Please try again.');
+      showToast(err instanceof Error ? err.message : 'Unable to save quiz results. Please try again.');
     }
   };
 

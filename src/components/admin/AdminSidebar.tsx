@@ -43,7 +43,6 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'inventory', label: 'Course Inventory', icon: BookOpen },
   { id: 'learning_paths', label: 'Learning Paths', icon: Route },
   { id: 'career_paths', label: 'Career Paths', icon: Route },
-  { id: 'role_skills', label: 'Skills by Role', icon: SlidersHorizontal },
   { id: 'skill_catalogue', label: 'Skills Catalogue', icon: SlidersHorizontal },
   { id: 'document_inventory', label: 'Document Inventory', icon: FileText },
   { id: 'certificate_templates', label: 'Certificate Templates', icon: Award },
@@ -55,7 +54,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 const NAV_GROUPS = [
   { id: 'insights', label: 'Overview & reports', items: ['overview', 'quiz_scores', 'team_reports', 'view_reports'] },
-  { id: 'learning', label: 'Learning & content', items: ['creator', 'create_courses', 'inventory', 'learning_paths', 'career_paths', 'role_skills', 'skill_catalogue', 'document_inventory', 'certificate_templates', 'create_certificates'] },
+  { id: 'learning', label: 'Learning & content', items: ['creator', 'create_courses', 'inventory', 'learning_paths', 'career_paths', 'skill_catalogue', 'document_inventory', 'certificate_templates', 'create_certificates'] },
   { id: 'people', label: 'People & assignments', items: ['teams', 'assignments', 'users'] },
   { id: 'administration', label: 'Administration', items: ['permissions', 'settings'] },
 ];

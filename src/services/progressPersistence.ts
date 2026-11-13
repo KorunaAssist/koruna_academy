@@ -1,4 +1,22 @@
 type WriteResult = { count: number; error?: { code?: string; message: string } | null };
+
+// Retry only a specifically missing optional column. Keep every supported
+// tracking field, especially the completion date, and never retry RLS errors.
+export async function writeCompatibleProgress<T extends { error: { code?: string; message: string } | null }>(
+  fields: Record<string, unknown>, send: (values: Record<string, unknown>) => PromiseLike<T>,
+): Promise<T> {
+  const values = { ...fields };
+  const optional = ['quiz_history', 'learning_hours', 'last_viewed_at'];
+  for (;;) {
+    const result = await send(values);
+    if (!result.error || !['PGRST204', '42703'].includes(result.error.code || '')) return result;
+    const missing = optional.find(column => column in values &&
+      (result.error!.message.includes(`'${column}'`) || result.error!.message.includes(`"${column}"`)
+        || result.error!.message.includes(`.${column} does not exist`)));
+    if (!missing) return result;
+    delete values[missing];
+  }
+}
 type ProgressWriter = {
   update: () => Promise<WriteResult>;
   insert: () => Promise<WriteResult>;

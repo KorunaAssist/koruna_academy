@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Award, AlertTriangle, RotateCcw, BookOpen, AlarmClock, CheckCircle2 } from 'lucide-react';
-import type { Course, SystemSettings } from '../../../services/db';
+import type { Course, SystemSettings, UserProgress } from '../../../services/db';
+import { formatCertificateIssueDate } from '../../../services/certificateDate';
 import type { UserSessionData } from '../../../services/auth';
 import { CertificateView } from '../CertificateView';
 import { CompletionCelebration } from '../CompletionCelebration';
@@ -8,6 +9,7 @@ import { countAnsweredQuizQuestions, getQuizQuestionType } from '../../../servic
 
 interface QuizViewerProps {
   studyingCourse: Course;
+  userProgress: UserProgress[];
   quizAnswers: Record<number, number>;
   quizTextAnswers?: Record<number, string>;
   handleQuizAnswer: (questionIdx: number, optionIdx: number) => void;
@@ -42,6 +44,7 @@ function formatTime(seconds: number): string {
 
 export const QuizViewer: React.FC<QuizViewerProps> = ({
   studyingCourse,
+  userProgress,
   quizAnswers,
   quizTextAnswers = {},
   handleQuizAnswer,
@@ -147,6 +150,9 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
       return (
         <CertificateView
           course={studyingCourse}
+          issueDate={formatCertificateIssueDate(userProgress
+            .filter(p => p.courseId === studyingCourse.id && p.progressPercent >= 100)
+            .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))[0])}
           userSession={userSession || { name: 'Valued Learner', email: '', role: 'employee' }}
           trainerName={studyingCourse.trainer}
           onBack={onDone || (() => setStudyingCourse?.(null))}

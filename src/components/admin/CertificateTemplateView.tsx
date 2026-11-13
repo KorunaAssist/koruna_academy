@@ -1,6 +1,10 @@
 import React from 'react';
+import type { DatabaseUser } from '../../services/db';
+import { TrainerSignature } from '../courses/TrainerSignature';
 
 interface CertificateTemplateViewProps {
+  users: DatabaseUser[];
+  currentUserId: string;
   certHeader: string;
   setCertHeader: (val: string) => void;
   trainerSig: string;
@@ -14,6 +18,8 @@ interface CertificateTemplateViewProps {
 }
 
 export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = ({
+  users,
+  currentUserId,
   certHeader,
   setCertHeader,
   trainerSig,
@@ -25,6 +31,7 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
   sampleCourseTitle,
   setSampleCourseTitle,
 }) => {
+  const [trainerId, setTrainerId] = React.useState(currentUserId);
   return (
     <div className="as-split">
       <div className="as-card as-card-body">
@@ -38,7 +45,16 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
             <input id="cert-header" className="as-input" value={certHeader} onChange={(e) => setCertHeader(e.target.value)} placeholder="Koruna Financial Academy" />
           </div>
           <div className="as-field">
-            <label className="as-label" htmlFor="cert-trainer">Trainer signature</label>
+            <label className="as-label" htmlFor="cert-signatory">Trainer signature</label>
+            <select id="cert-signatory" className="as-select" value={trainerId} onChange={event => {
+              setTrainerId(event.target.value);
+              setTrainerSig(users.find(user => user.id === event.target.value)?.name || '');
+            }}>
+              <option value="">No signature</option>
+              {users.filter(user => user.role === 'trainer' || user.role === 'admin').map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+            <p className="as-cell-sub">Uses the signature saved in User Directory. Issued certificates use the course creator’s signature automatically.</p>
+            <label className="as-label" htmlFor="cert-trainer">Trainer name</label>
             <input id="cert-trainer" className="as-input" value={trainerSig} onChange={(e) => setTrainerSig(e.target.value)} placeholder="Course trainer name" />
           </div>
           <div className="as-field">
@@ -61,6 +77,7 @@ export const CertificateTemplateView: React.FC<CertificateTemplateViewProps> = (
         <p className="as-card-desc" style={{ marginBottom: '1rem' }}>How a certificate will look when issued.</p>
         <div className="as-cert-frame">
           <img src="/Certificate.png" alt="Certificate template" style={{ width: '100%', height: 'auto', display: 'block', userSelect: 'none' }} />
+          <TrainerSignature profileId={trainerId} />
           <div className="as-cert-overlay" style={{ top: '33%', left: '50%', width: '68%' }}>
             <span style={{ fontSize: 'clamp(1rem, 2.5vw, 1.7rem)', fontWeight: 700, color: '#be185d', lineHeight: 1.15 }}>
               {sampleRecipient || 'Jessica Taylor'}

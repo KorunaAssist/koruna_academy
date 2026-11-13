@@ -47,7 +47,7 @@ export function EarnedCertificates({ courses, progress, learnerName, getIssueDat
         <div className="earned-grid">
           {visible.map(course => <article className="earned-card" key={course.id}>
             <button className="earned-preview" onClick={() => onView(course)} aria-label={`View certificate for ${course.title}`}>
-              <CertificateDocument recipientName={learnerName} displayCourseTitle={course.title} displayTrainerName={course.trainer?.trim() || 'Koruna Academy Trainer'} displayIssueDate={getIssueDate(course)} />
+              <CertificateDocument trainerProfileId={course.createdBy} recipientName={learnerName} displayCourseTitle={course.title} displayTrainerName={course.trainer?.trim() || 'Koruna Academy Trainer'} displayIssueDate={getIssueDate(course)} />
               <span className="earned-preview-action">View certificate <ArrowUpRight size={15} /></span>
             </button>
             <div className="earned-card-body"><div className="earned-card-meta"><span>{course.category || 'Professional learning'}</span><span className="earned-complete"><CheckCircle size={13} /> Completed</span></div><h4>{course.title}</h4><p>Issued by Koruna Academy</p><button className="earned-view" onClick={() => onView(course)}>View certificate <ArrowUpRight size={17} /></button></div>

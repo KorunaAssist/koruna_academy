@@ -100,6 +100,7 @@ export const CourseStudyView: React.FC<CourseStudyViewProps> = ({
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <QuizViewer
           studyingCourse={studyingCourse}
+          userProgress={userProgress}
           quizAnswers={quizAnswers}
           quizTextAnswers={quizTextAnswers}
           handleQuizAnswer={handleQuizAnswer}

@@ -2,6 +2,40 @@ import React, { useState } from 'react';
 import { Search, Trash2 } from 'lucide-react';
 import type { DatabaseUser, Department } from '../../services/db';
 import type { UserRole } from '../../services/auth';
+import { getTrainerSignature, readSignatureFile, saveTrainerSignature } from '../../services/trainerSignatures';
+
+function SignatureEditor({ user }: { user: DatabaseUser }) {
+  const [image, setImage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  React.useEffect(() => {
+    let cancelled = false;
+    getTrainerSignature(user.id).then(value => { if (!cancelled) setImage(value); })
+      .catch(error => { if (!cancelled) setMessage(error.message); });
+    return () => { cancelled = true; };
+  }, [user.id]);
+  const save = async (file: File | null) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const next = file ? await readSignatureFile(file) : null;
+      await saveTrainerSignature(user.id, next);
+      setImage(next);
+      setMessage(next ? 'Signature saved. Linked to certificates for courses created by this trainer.' : 'Signature removed.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to save signature.');
+    } finally { setBusy(false); }
+  };
+  return <div style={{ maxWidth: 260 }}>
+    {image && <img src={image} alt={`Signature for ${user.name}`} style={{ display: 'block', width: 140, height: 50, objectFit: 'contain', background: 'white', marginBottom: 8 }} />}
+    <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy}
+      aria-label={`${image ? 'Replace' : 'Upload'} signature for ${user.name}`}
+      onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void save(file); }} />
+    <div className="as-cell-sub">PNG, JPEG or WebP, up to 500 KB. Transparent PNG recommended.</div>
+    {image && <button type="button" className="as-btn" disabled={busy} onClick={() => void save(null)}>Remove signature</button>}
+    <div role="status" className="as-cell-sub">{busy ? 'Saving signature…' : message}</div>
+  </div>;
+}
 
 interface UserDirectoryViewProps {
   users: DatabaseUser[];
@@ -49,6 +83,7 @@ export const UserDirectoryView: React.FC<UserDirectoryViewProps> = ({
               <th>User</th>
               <th>Role</th>
               <th>Department</th>
+              <th>Trainer signature</th>
               <th className="as-right">Actions</th>
             </tr>
           </thead>
@@ -84,6 +119,7 @@ export const UserDirectoryView: React.FC<UserDirectoryViewProps> = ({
                     ))}
                   </select>
                 </td>
+                <td>{u.role === 'trainer' || u.role === 'admin' ? <SignatureEditor user={u} /> : <span className="as-cell-sub">Trainers only</span>}</td>
                 <td className="as-right">
                   <button
                     type="button"
@@ -98,7 +134,7 @@ export const UserDirectoryView: React.FC<UserDirectoryViewProps> = ({
               </tr>
             ))}
             {filteredUsers.length === 0 && (
-              <tr><td colSpan={4} className="as-center as-cell-sub" style={{ padding: '2rem' }}>No users match “{userSearchQuery}”.</td></tr>
+              <tr><td colSpan={5} className="as-center as-cell-sub" style={{ padding: '2rem' }}>No users match “{userSearchQuery}”.</td></tr>
             )}
           </tbody>
         </table>

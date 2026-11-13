@@ -1,4 +1,7 @@
+import { TrainerSignature } from './TrainerSignature';
+
 interface Props {
+  trainerProfileId?: string | null;
   recipientName: string;
   displayCourseTitle: string;
   displayTrainerName: string;
@@ -6,7 +9,7 @@ interface Props {
   printable?: boolean;
 }
 
-export function CertificateDocument({ recipientName, displayCourseTitle, displayTrainerName, displayIssueDate, printable = false }: Props) {
+export function CertificateDocument({ recipientName, displayCourseTitle, displayTrainerName, displayIssueDate, printable = false, trainerProfileId }: Props) {
   return (
       <div
         id={printable ? "printable-certificate" : undefined}
@@ -86,6 +89,7 @@ export function CertificateDocument({ recipientName, displayCourseTitle, display
           </span>
         </div>
 
+        <TrainerSignature profileId={trainerProfileId} trainerName={displayTrainerName} />
         {/* 3. Trainer Overlay */}
         <div style={{
           position: 'absolute',

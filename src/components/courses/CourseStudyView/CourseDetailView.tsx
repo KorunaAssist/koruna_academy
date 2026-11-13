@@ -40,7 +40,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [selectedResource, setSelectedResource] = useState<ResourceFile | null>(null);
   const [showCertModal, setShowCertModal] = useState<boolean>(false);
   const [isAcknowledgedChecked, setIsAcknowledgedChecked] = useState<boolean>(false);
-  const currentProgress = userProgress.find(p => p.courseId === studyingCourse.id);
+  const currentProgress = userProgress.filter(p => p.courseId === studyingCourse.id)
+    .sort((a, b) => b.progressPercent - a.progressPercent || (b.completedAt || '').localeCompare(a.completedAt || ''))[0];
   const completedLessonsList = currentProgress?.completedLessons || [];
 
   // Group lessons into modules dynamically
@@ -992,6 +993,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           trainerName={studyingCourse.trainer}
           onBack={() => setShowCertModal(false)}
           onDone={() => setShowCertModal(false)}
+          showCompletionModal={false}
           showToast={showToast}
           isModal={true}
         />
