@@ -3,6 +3,40 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
+test('lending role seed links all 66 skills and preserves existing records on rerun', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      CREATE TABLE skills(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text UNIQUE NOT NULL, description text, archived boolean DEFAULT false);
+      CREATE TABLE skill_roles(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL);
+      CREATE UNIQUE INDEX skill_roles_name_unique ON skill_roles(lower(btrim(name)));
+      CREATE TABLE role_skills(role_id uuid REFERENCES skill_roles(id), skill_id uuid REFERENCES skills(id), PRIMARY KEY(role_id, skill_id));
+      INSERT INTO skills(name, description, archived) VALUES (' basic mortgage broking knowledge ', 'Keep this description', true), ('Existing skill', 'Original', false);
+      INSERT INTO skill_roles(name) VALUES (' BASIC LOAN PROCESSING '), ('Existing role');
+      INSERT INTO role_skills SELECT r.id, s.id FROM skill_roles r CROSS JOIN skills s WHERE r.name = 'Existing role' AND s.name = 'Existing skill';
+    `);
+    const before = (await db.query('SELECT * FROM skills ORDER BY name')).rows;
+    const migration = await readFile(new URL('../supabase/migrations/202611120001_lending_role_skills.sql', import.meta.url), 'utf8');
+    await db.exec(migration);
+    const counts = (await db.query(`SELECT lower(btrim(r.name)) AS name, count(*)::int AS count FROM skill_roles r JOIN role_skills rs ON rs.role_id = r.id GROUP BY r.id ORDER BY name`)).rows;
+    assert.deepEqual(counts, [
+      { name: 'advanced loan processing', count: 16 },
+      { name: 'advanced loan structuring & technical lending', count: 18 },
+      { name: 'basic loan processing', count: 14 },
+      { name: 'existing role', count: 1 },
+      { name: 'financial assessment & credit analysis', count: 18 },
+    ]);
+    const snapshot = async () => (await db.query(`SELECT (SELECT count(*)::int FROM skills) AS skills, (SELECT count(*)::int FROM skill_roles) AS roles, (SELECT count(*)::int FROM role_skills) AS links`)).rows;
+    const first = await snapshot();
+    assert.deepEqual(first, [{ skills: 67, roles: 5, links: 67 }]);
+    await db.exec(migration);
+    assert.deepEqual(await snapshot(), first);
+    for (const skill of before) {
+      assert.deepEqual((await db.query('SELECT * FROM skills WHERE id = $1', [skill.id])).rows[0], skill);
+    }
+  } finally { await db.close(); }
+});
+
 test('role skills seed, access control and atomic updates', async () => {
   const db = new PGlite();
   try {

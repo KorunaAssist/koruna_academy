@@ -1,3 +1,4 @@
+import { formatCertificateIssueDate } from '../../../services/certificateDate';
 import React, { useState } from 'react';
 import { CheckCircle2, Lock, Play, ChevronDown, ChevronUp, Sparkles, FileText, Eye } from 'lucide-react';
 import type { Course, UserProgress, Lesson } from '../../../services/db';
@@ -986,7 +987,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         <CertificateView
           course={studyingCourse}
           userSession={userSession || { name: 'Jessica Timon', email: '', role: 'employee' }}
-          issueDate={new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+          issueDate={formatCertificateIssueDate(currentProgress)}
           certificateId={`CERT-${studyingCourse.id.toUpperCase()}-2026`}
           trainerName={studyingCourse.trainer}
           onBack={() => setShowCertModal(false)}

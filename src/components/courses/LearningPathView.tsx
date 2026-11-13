@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, BookOpen, Check, CircleCheck, Compass, Lock, Play, Route, Search, Target } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, CircleCheck, Lock, Play, Route, Search, Target } from 'lucide-react';
 import type { Course, UserProgress } from '../../services/db';
 import type { UserSessionData } from '../../services/auth';
 import { learningPathService, type PathVersion } from '../../services/learningPaths';
@@ -52,19 +52,18 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
     </button>;
   };
   return <section className="lp-workspace lp-learner" aria-labelledby="lp-title">
-    <header className="lp-page-heading"><div><span className="lp-eyebrow">LEARN WITH PURPOSE</span><h1 id="lp-title">Your next chapter starts here.</h1><p>Follow a clear path. Build practical skills. Make progress that matters.</p></div><span className="lp-page-label"><Route size={16}/> Learning Paths</span></header>
+    <header className="lp-page-heading"><div><span className="lp-eyebrow">LEARN WITH PURPOSE</span><h1 id="lp-title">Learning paths</h1><p>Build your skills, one milestone at a time. Your next step starts here.</p></div><span className="lp-page-label"><Route size={16}/> Your learning journey</span></header>
     {loading && <div className="lp-empty" role="status">Loading your learning paths...</div>}
     {(error || actionError) && <div className="lp-alert" role="alert">{error || actionError}<button className="lp-button" disabled={busy} onClick={() => run(async () => { await reload(); })}>Retry</button></div>}
     {!loading && !error && <>
       <div className="lp-overview">
-        <div className="lp-feature"><span className="lp-feature-icon"><Compass size={27}/></span><span className="lp-eyebrow">SMALL STEPS. REAL GROWTH.</span><h2>A little learning.<br/>A whole new direction.</h2><p>Your goals, broken down into a guided sequence of courses. Pick a path and take the next step.</p><button className="lp-feature-action" onClick={() => setTab('explore')}>Explore learning paths <ArrowRight size={17}/></button><Route className="lp-feature-art" size={150} strokeWidth={1}/></div>
         <div className="lp-stats" aria-label="Your learning path summary">
           <div><span className="lp-stat-icon"><Route size={20}/></span><strong>{myEnrolments.length}<small>Paths joined</small></strong></div>
           <div><span className="lp-stat-icon green"><CircleCheck size={20}/></span><strong>{completedCount}<small>Paths completed</small></strong></div>
           <div><span className="lp-stat-icon amber"><Target size={20}/></span><strong>{discover.length}<small>Paths to explore</small></strong></div>
         </div>
       </div>
-      <div className="lp-library-heading"><div><h2>Find your direction</h2><p className="lp-muted">A roadmap for every next step in your career.</p></div><label className="lp-search-box"><Search size={18}/><input aria-label="Search learning paths" type="search" placeholder="Search learning paths..." value={query} onChange={e => setQuery(e.target.value)}/></label></div>
+      <div className="lp-library-heading"><div><h2>Your path to what?s next</h2><p className="lp-muted">A roadmap for every next step in your career.</p></div><label className="lp-search-box"><Search size={18}/><input aria-label="Search learning paths" type="search" placeholder="Search learning paths..." value={query} onChange={e => setQuery(e.target.value)}/></label></div>
       <div className="lp-tabs" role="group" aria-label="Learning path collection"><button aria-pressed={tab === 'mine'} className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My learning paths <span>{myVersions.length}</span></button><button aria-pressed={tab === 'explore'} className={tab === 'explore' ? 'active' : ''} onClick={() => setTab('explore')}>Explore paths <span>{discover.length}</span></button></div>
       <div className="lp-card-grid">{visiblePaths.map(card)}{!visiblePaths.length && <div className="lp-empty"><BookOpen size={30}/><h3>{query ? 'No matching paths' : tab === 'mine' ? 'Your journey is ready to begin' : 'All caught up'}</h3><p>{query ? 'Try a different name or keyword.' : tab === 'mine' ? 'Explore the available learning paths and find your next goal.' : published.length ? 'You have joined all available paths. Keep going with your courses below.' : 'New learning paths will appear here when they are published.'}</p>{tab === 'mine' && !query && <button className="lp-button primary" onClick={() => setTab('explore')}>Explore paths <ArrowRight size={16}/></button>}</div>}</div>
       {selected && <section className="lp-panel lp-stack" aria-label={`${selected.name} course sequence`}>

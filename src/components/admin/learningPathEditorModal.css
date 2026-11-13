@@ -1,0 +1,57 @@
+.lpa .lpa-editor-dialog{width:min(1180px,calc(100vw - 48px));border:0;border-radius:20px;background:#f8f9fc}
+.lpa .lpa-editor-dialog>.lp-panel{padding:0;background:transparent;gap:0}
+.lpa-editor-dialog .lpa-editor-heading{position:sticky;top:0;z-index:3;background:#fff;padding:24px 28px;margin:0;gap:16px;border-bottom:1px solid #ece9ef}
+.lpe-title{display:flex;align-items:center;gap:14px;min-width:0}
+.lpe-title-icon{display:grid;place-items:center;flex-shrink:0;width:50px;height:50px;border:1px solid #f2d7e4;border-radius:14px;background:#fdf1f6;color:var(--lp-brand)}
+.lpa-editor-dialog .lpe-title .lp-eyebrow{font-size:9px;letter-spacing:1.6px;margin-bottom:5px}
+.lpa-editor-dialog .lpe-title h2{font-size:23px;font-weight:750;letter-spacing:-.7px;line-height:1.3}
+.lpa-editor-dialog .lpe-title p{font-size:12px;margin-top:5px}
+.lpe-header-actions{display:flex;align-items:center;gap:16px;margin-left:auto}.lpe-header-actions .lp-badge{align-self:center}
+.lpa-editor-dialog .lpe-header-actions .lp-icon{border:0;background:#f5f4f7;color:#77717e;border-radius:50%;width:32px;height:32px}
+.lpa-editor-dialog .lp-fieldset{gap:0;display:block}
+.lpe-content{padding:26px 28px 30px}
+.lpe-details{padding:22px;border:1px solid #e9e6ed;border-radius:14px;background:#fff}
+.lpe-section-heading{display:flex;align-items:flex-start;gap:11px;margin-bottom:20px}
+.lpe-section-number{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;background:#f9ecf2;border-radius:8px;color:var(--lp-brand);font-size:10px;font-weight:750}
+.lpe-section-heading h3{font-size:14px;letter-spacing:-.2px;font-weight:700;line-height:1.5}
+.lpe-section-heading p{color:#817987;font-size:11px;margin-top:3px;line-height:1.6}
+.lpe-details-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px;align-items:start}
+.lpa-editor-dialog .lp-field{position:relative;font-size:11px;font-weight:650;color:#554c5f}
+.lpa-editor-dialog .lp-field input,.lpa-editor-dialog .lp-field textarea{background:#fdfcfe;border-color:#e7e3eb;border-radius:9px;padding:12px;font-size:12px;font-weight:400}
+.lpa-editor-dialog .lp-field textarea{min-height:76px}.lpe-optional{position:absolute;right:0;top:0;color:#99909f;font-size:10px;font-weight:400}
+.lpe-curriculum-heading{margin:27px 0 16px}.lpe-required-count{align-self:center;margin-left:auto;color:#85758a;font-size:11px;white-space:nowrap}
+.lpa-editor-dialog .lp-columns{margin:0;grid-template-columns:minmax(240px,.85fr) minmax(0,1.35fr);gap:22px}
+.lpa .lpa-editor-dialog .lpa-course-library{padding:18px;background:#fff;border-color:#e9e6ed;gap:16px;border-radius:14px}
+.lpa-editor-dialog .lpa-course-library h3,.lpa-editor-dialog .lpa-sequence>h3{font-size:13px}
+.lpe-library-count{margin-left:auto;background:#f2f0f5;border-radius:5px;padding:3px 7px;color:#8c8194;font-size:10px}
+.lpe-course-search{display:flex;align-items:center;gap:8px;border:1px solid #e9e5ed;background:#faf9fc;border-radius:8px;padding:10px 11px;color:#96899c}
+.lpe-course-search input{font:inherit;font-size:11px;width:100%;min-width:0;border:0;background:transparent;color:#3e3548;outline:none}
+.lpe-course-search:focus-within{outline:2px solid var(--lp-brand);outline-offset:2px}.lpe-course-search input:focus-visible{outline:none}
+.lpa-editor-dialog .lpa-course-library .lp-picker{max-height:430px;padding:2px;gap:0}
+.lpa-editor-dialog .lpa-course-library .lp-picker-row{border:0;border-bottom:1px solid #f0edf3;border-radius:0;background:transparent;padding:14px 4px;font-size:12px;font-weight:550;line-height:1.5}
+.lpa-editor-dialog .lpa-course-library .lp-picker-row:last-child{border-bottom:0}.lpa-editor-dialog .lpa-course-library .lp-picker-row:hover{background:#fff7fb;border-color:#f0edf3}
+.lpe-course-copy{overflow-wrap:anywhere}.lpa-editor-dialog .lpe-course-copy small{font-size:10px;color:#9c90a5;font-weight:400;margin-top:5px}
+.lpe-add{display:grid;place-items:center;flex-shrink:0;background:#fbedf3;color:var(--lp-brand);border:1px solid #f3dce7;border-radius:7px;width:27px;height:27px}
+.lpa-editor-dialog .lpa-sequence{gap:12px;padding:4px 0}.lpa-editor-dialog .lpa-sequence>.lp-muted{font-size:11px;margin-bottom:3px}
+.lpa .lpa-editor-dialog .lpe-sequence-empty{padding:36px 22px;min-height:280px;justify-content:center;border-style:dashed;background:#ffffff80;border-color:#ddd4e2;gap:12px}
+.lpe-sequence-empty>span:first-child{display:grid;place-items:center;background:#f4ecf4;color:#b58cab;width:58px;height:58px;border-radius:16px;margin-bottom:3px}
+.lpa-editor-dialog .lpe-sequence-empty h3{font-size:15px;color:#55465f}.lpa-editor-dialog .lpe-sequence-empty p{font-size:12px;max-width:280px;color:#8d8095}
+.lpe-empty-hint{color:#a294aa;font-size:10px;margin-top:6px}
+.lpa .lpa-editor-dialog .lp-step-editor{border:1px solid #e9e3ee;border-left:3px solid #dca6bf;padding:16px;background:#fff;box-shadow:0 2px 4px #3d194603;border-radius:11px}
+.lpa-editor-dialog .lpa-step-title{font-size:12px;font-weight:650;overflow-wrap:anywhere}.lpa-editor-dialog .lpa-step-title>span{border-radius:50%;width:28px;height:28px;font-size:11px}
+.lpa-editor-dialog .lp-step-editor .lp-check{font-size:11px;color:#726379;padding:5px 0}.lpa-editor-dialog .lp-step-editor input[type=checkbox]{width:15px;height:15px}
+.lpa-editor-dialog .lp-step-editor summary{font-size:11px;color:#8c7b97;list-style:none;display:flex;align-items:center;gap:7px}
+.lpa-editor-dialog .lp-step-editor summary::-webkit-details-marker{display:none}.lpa-editor-dialog .lp-step-editor summary::after{content:'+';margin-left:auto;font-size:15px}.lpa-editor-dialog .lp-step-editor details[open]>summary::after{content:'−'}
+.lpa-editor-dialog .lp-step-editor summary>span{background:#f1edf5;padding:2px 6px;border-radius:5px;font-size:10px}
+.lpa-editor-dialog .lpa-editor-footer{position:sticky;bottom:0;z-index:2;margin:0;padding:18px 28px;background:#fff;border-top:1px solid #e9e4ed;gap:10px;box-shadow:0 -5px 18px #38234404}
+.lpe-publish-note{display:flex;align-items:center;gap:10px;margin-right:auto;color:#99899e}.lpe-publish-note strong{display:block;color:#625469;font-size:11px;font-weight:650}.lpe-publish-note small{font-size:10px;margin-top:3px;color:#96889e}
+.lpa-editor-dialog .lpa-editor-footer .lp-button{font-size:11px;padding:11px 16px;min-height:41px}.lpa-editor-dialog form>.lp-alert{margin:18px 28px 0}
+@media(max-width:800px){.lpa .lpa-editor-dialog .lp-columns{grid-template-columns:1fr}.lpe-details-fields{grid-template-columns:1fr;gap:18px}.lpe-publish-note{flex-basis:100%;margin-bottom:4px}.lpa-editor-dialog .lpa-course-library .lp-picker{max-height:260px}}
+@media(max-width:540px){.lpa .lpa-editor-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:14px}.lpa .lpa-editor-dialog>.lp-panel{padding:0}.lpa-editor-dialog .lpa-editor-heading{padding:18px 16px;flex-wrap:nowrap}.lpe-title{gap:9px}.lpe-title-icon{width:36px;height:36px;border-radius:10px}.lpa-editor-dialog .lpe-title h2{font-size:18px}.lpa-editor-dialog .lpe-title .lp-eyebrow{font-size:8px;letter-spacing:1px}.lpa-editor-dialog .lpe-title p{display:none}.lpe-header-actions{gap:5px}.lpe-header-actions>.lp-badge{display:none}.lpe-content{padding:18px 14px}.lpe-details{padding:16px}.lpe-section-heading{flex-wrap:wrap;gap:8px}.lpe-section-heading>div{flex:1;min-width:160px}.lpe-required-count{margin-left:36px}.lpa-editor-dialog .lpa-editor-footer{padding:14px 16px}.lpa-editor-dialog .lpa-editor-footer .lp-button{flex:1;padding:10px;font-size:10px}.lpe-publish-note>svg{display:none}.lpe-publish-note small{font-size:9px}}
+.lpa .lpe-close-confirmation{margin:auto;padding:28px;border:1px solid #e9e3ee;border-radius:16px;width:min(440px,calc(100vw - 40px));background:#fff;color:#3e3548;box-shadow:0 24px 80px #24172940}
+.lpe-close-confirmation::backdrop{background:#17203380;backdrop-filter:blur(2px)}
+.lpe-close-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:13px;background:#fff4e5;color:#b57721;margin-bottom:18px}
+.lpa .lpe-close-confirmation h3{font-size:19px;letter-spacing:-.4px;margin:0 0 10px}
+.lpa .lpe-close-confirmation p{font-size:13px;line-height:1.7;color:#817987;margin:0 0 24px}
+.lpe-close-confirmation .lp-actions{justify-content:flex-end;gap:10px}
+@media(max-width:540px){.lpa .lpe-close-confirmation{padding:22px}.lpe-close-confirmation .lp-actions .lp-button{flex:1;font-size:11px;padding:10px}}

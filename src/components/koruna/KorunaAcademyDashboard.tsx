@@ -1,3 +1,4 @@
+import { formatCertificateIssueDate } from '../../services/certificateDate';
 import React from 'react';
 import {
   Award,
@@ -156,15 +157,6 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     return { label: 'Upcoming', backgroundColor: '#cffaff', color: '#0891b2' };
   };
 
-  const getCertificateIssueDate = (progress: UserProgress) => {
-    if (progress.lastViewedAt) return new Date(progress.lastViewedAt);
-    if (progress.dueDate) return parseDateOnly(progress.dueDate);
-    return new Date();
-  };
-
-  const formatCertificateDate = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
   const formatDueDate = (value?: string) => {
     if (!value) return null;
     return parseDateOnly(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -173,8 +165,8 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
   const recentCertificates = earnedCourses
     .map((course) => {
       const progress = userProgs.filter(item => item.courseId === course.id && item.progressPercent >= 100)
-        .sort((a, b) => new Date(b.lastViewedAt || 0).getTime() - new Date(a.lastViewedAt || 0).getTime())[0];
-      const issuedAt = getCertificateIssueDate(progress);
+        .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime())[0];
+      const issuedAt = new Date(progress.completedAt || 0);
       const certificateId = `CERT-${course.id.toUpperCase()}-${progress.applicationId || issuedAt.getFullYear()}`;
       return { course, progress, issuedAt, certificateId };
     })
@@ -807,7 +799,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {recentCertificates.length > 0 ? (
-                recentCertificates.map(({ course, issuedAt, certificateId }, index) => (
+                recentCertificates.map(({ course, progress, certificateId }, index) => (
                   <button
                     key={certificateId}
                     type="button"
@@ -865,7 +857,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
                         {course.title}
                       </div>
                       <div style={{ fontSize: '0.75rem', opacity: 0.85, marginTop: '0.1rem' }}>
-                        Issued {formatCertificateDate(issuedAt)}
+                        Issued {formatCertificateIssueDate(progress)}
                       </div>
                       <div style={{ fontSize: '0.65rem', opacity: 0.7, marginTop: '0.1rem', fontWeight: 700 }}>
                         {certificateId}

@@ -1,3 +1,4 @@
+import { formatCertificateIssueDate } from '../services/certificateDate';
 import React, { useState, useRef, useEffect } from 'react';
 import { isQuizAnswerCorrect } from '../services/quizAnswers';
 import {
@@ -615,7 +616,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Get date and cert ID for earned certificates
   const getCertData = (courseId: string) => {
-    return { date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), id: `CERT-${courseId.toUpperCase()}-${Math.floor(10000 + Math.random() * 90000)}` };
+    const progress = userProgress.filter(p => p.courseId === courseId && p.progressPercent >= 100).sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))[0];
+    return { date: formatCertificateIssueDate(progress), id: `CERT-${courseId.toUpperCase()}-${progress?.applicationId || 0}` };
   };
 
   // ==========================================

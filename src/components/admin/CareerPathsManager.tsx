@@ -1,5 +1,7 @@
 import { useEffect,useState } from 'react';
 import type { FormEvent } from 'react';
+import { GitBranch, Plus, Search, ShieldCheck, FileEdit, Layers } from 'lucide-react';
+import './careerPathsManager.css';
 import type { UserSessionData } from '../../services/auth';
 import type { Course } from '../../services/db';
 import { careerPathService,loadCareerWorkspace,type CareerPath,type CareerStage,type CareerWorkspace } from '../../services/careerPaths';
@@ -21,6 +23,7 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
   const [description,setDescription] = useState('');
   const [stages,setStages] = useState<CareerStage[]>([]);
   const [status,setStatus] = useState('all');
+  const [search,setSearch] = useState('');
   const [courseSearch,setCourseSearch] = useState<Record<string,string>>({});
   useEffect(() => {
     if (!canManage) return;
@@ -61,13 +64,20 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
     catch (reason) {setError(reason instanceof Error ? reason.message : 'Unable to archive career path.');}
     finally {setBusy(false);}
   };
-  return <section className="lp-workspace" aria-labelledby="career-manager-title">
-    <header className="lp-toolbar"><div><h1 id="career-manager-title">Career Paths</h1><p className="lp-muted">Add career roles and the courses and skills employees need to prepare for each promotion.</p></div>
-      {!editing && <button className="lp-button primary" disabled={loading || busy || !data} onClick={() => edit()}>Add Career Path</button>}
+  const visible = owned.filter(path => (status==='all' || path.status===status) && `${path.name} ${path.description} ${path.stages.map(stage => stage.title).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase()));
+  return <section className="lp-workspace cpa" aria-labelledby="career-manager-title">
+    <header className="lp-toolbar cpa-heading"><div><span className="cpa-eyebrow">PEOPLE DEVELOPMENT</span><h1 id="career-manager-title">Career Paths</h1><p className="lp-muted">Build clear progressions. Give every employee a path to their next role.</p></div>
+      {!editing && <button className="lp-button primary" disabled={loading || busy || !data} onClick={() => edit()}><Plus size={16}/> Create career path</button>}
     </header>
     {error && <div className="lp-alert" role="alert">{error}</div>}
     {notice && <p className="lp-notice" role="status">{notice}</p>}
-    <div className="lp-toolbar"><p className="lp-muted">Published requirements are frozen. Copy a path to a new draft to make changes; existing goals keep their original requirements.</p>
+    {!editing && <div className="cpa-stats" aria-label="Career path overview">{[
+      {label:'Total career paths',value:owned.length,icon:GitBranch,tone:'rose'},
+      {label:'Published paths',value:owned.filter(p => p.status==='published').length,icon:ShieldCheck,tone:'green'},
+      {label:'Drafts in progress',value:owned.filter(p => p.status==='draft').length,icon:FileEdit,tone:'amber'},
+      {label:'Active role stages',value:owned.filter(p => p.status!=='archived').reduce((sum,p) => sum+p.stages.length,0),icon:Layers,tone:'blue'},
+    ].map(stat => <div key={stat.label}><span className={`cpa-stat-icon ${stat.tone}`}><stat.icon size={21}/></span><div><strong>{loading && !data ? '—' : stat.value}</strong><span>{stat.label}</span></div></div>)}</div>}
+    <div className="lp-toolbar cpa-guidance"><ShieldCheck size={18}/><p className="lp-muted">Published paths preserve employee requirements. Copy a path to a new draft to introduce changes.</p>
       <button className="lp-button" disabled={loading || busy} onClick={() => setRefresh(n => n+1)}>{loading ? 'Refreshing...' : 'Refresh'}</button></div>
     {loading && !data && <p role="status">Loading career paths...</p>}
     {data && (editing ? <form className="lp-panel lp-stack cp-editor" onSubmit={save}>
@@ -117,10 +127,12 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
         <button className="lp-button primary" type="submit" value="publish" disabled={busy || !stages.length}>Publish Career Path</button>
         <button className="lp-button" type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button></div>
     </form> : <>
-      <label className="lp-field lp-search">Status<select value={status} onChange={e => setStatus(e.target.value)}><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label>
-      <div className="lp-card-grid">{owned.filter(path => status==='all' || path.status===status).map(path => <article className="lp-panel lp-stack" key={path.id}>
-        <span className={`lp-badge ${path.status}`}>{path.status}</span><h2>{path.name}</h2><p className="lp-muted">{path.description}</p>
-        <ol>{path.stages.map(stage => <li key={stage.id}>{stage.title} <small>{stage.course_ids.length} courses · {stage.roadmap_version_ids.length} roadmaps · {stage.skills.length} skill targets</small></li>)}</ol>
+      <div className="cpa-library-heading"><div><h2>Career path library</h2><p className="lp-muted">Manage the roles and requirements that shape your team's growth.</p></div><label className="cpa-search"><Search size={17}/><input aria-label="Search career paths" type="search" placeholder="Search career paths..." value={search} onChange={e => setSearch(e.target.value)}/></label></div>
+      <div className="cpa-tabs" aria-label="Filter career paths by status">{['all','published','draft','archived'].map(value => <button key={value} type="button" className={status===value ? 'active' : ''} aria-pressed={status===value} onClick={() => setStatus(value)}>{value==='all' ? 'All paths' : value==='draft' ? 'Drafts' : value[0].toUpperCase()+value.slice(1)}<span>{owned.filter(p => value==='all' || p.status===value).length}</span></button>)}</div>
+      <div className="lp-card-grid cpa-grid">{visible.map(path => <article className="lp-panel lp-stack cpa-card" key={path.id}>
+        <div className="lp-toolbar"><span className="cpa-path-icon"><GitBranch size={23}/></span><span className={`lp-badge ${path.status}`}>{path.status}</span></div><div className="cpa-card-copy"><h2>{path.name}</h2><p className="lp-muted">{path.description || 'A structured progression of roles, learning, and skills.'}</p></div>
+        <div className="cpa-card-meta"><Layers size={14}/>{path.stages.length} roles <span>{path.stages.reduce((sum,stage) => sum+stage.course_ids.length+stage.roadmap_version_ids.length+stage.skills.length,0)} requirements</span></div>
+        <ol className="cpa-role-list">{path.stages.map((stage,index) => <li key={stage.id}><span className="cpa-role-number">{String(index+1).padStart(2,'0')}</span><div><strong>{stage.title}</strong><small>{stage.course_ids.length} courses · {stage.roadmap_version_ids.length} roadmaps · {stage.skills.length} skills</small></div></li>)}</ol>
         <div className="lp-actions">
           {path.status==='draft' && <button className="lp-button primary" disabled={busy} onClick={() => edit(path)}>Edit Draft</button>}
           <button className="lp-button" disabled={busy || path.stages.length>=20} onClick={() => {edit(path,path.status!=='draft');setStages([...structuredClone(path.stages),newStage()]);}}>Add Role{path.status!=='draft' ? ' in New Draft' : ''}</button>
@@ -128,8 +140,8 @@ export function CareerPathsManager({userSession,courses}: {userSession: UserSess
           {path.status!=='archived' && <button className="lp-button" disabled={busy} onClick={() => archive(path.id)}>Archive</button>}
         </div>
       </article>)}</div>
-      {!owned.length && <p className="lp-empty">No career paths created yet. Create a path such as Loan Processor, Parabroker, or Servicing Specialist.</p>}
-      {!!owned.length && !owned.some(path => status==='all' || path.status===status) && <p>No career paths match this status.</p>}
+      {!owned.length && <div className="lp-empty cpa-empty"><GitBranch size={34}/><h3>Build the next step in their career</h3><p>Create your first career path with roles, courses, and skill targets.</p><button className="lp-button primary" disabled={busy || loading} onClick={() => edit()}><Plus size={16}/> Create career path</button></div>}
+      {!!owned.length && !visible.length && <div className="lp-empty cpa-empty"><Search size={26}/><h3>No matching career paths</h3><p>Try a different search or status filter.</p><button className="lp-button" onClick={() => {setSearch('');setStatus('all');}}>Clear filters</button></div>}
     </>)}
   </section>;
 }

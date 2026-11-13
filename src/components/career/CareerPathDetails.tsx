@@ -48,8 +48,8 @@ export function CareerPathDetails({path,workspace,userSession,courses,userProgre
         <div className="cp-role"><small>{model.ready ? 'TRAINING COMPLETED' : 'NEXT ROLE'}</small><span className="cp-role-icon next"><Award size={22}/></span><strong>{model.current?.title || (model.ready ? 'Ready for a career discussion' : 'No role configured')}</strong><span>{userSession.department || path.name}</span></div>
       </div>
       <div className="cp-readiness">
-        <progress max={100} value={model.current?.percent ?? (model.ready ? 100 : 0)} aria-label="Promotion readiness"/>
-        <div className="cp-readiness-label"><strong>Promotion Readiness</strong><strong>{model.current?.percent ?? (model.ready ? 100 : 0)}%</strong></div>
+        <progress max={100} value={model.current?.percent ?? (model.ready ? 100 : 0)} aria-label="Next role training readiness"/>
+        <div className="cp-readiness-label"><strong>Next role training readiness</strong><strong>{model.current?.percent ?? (model.ready ? 100 : 0)}%</strong></div>
         <p><strong>{remainingCourses}</strong> {remainingCourses===1 ? 'Course' : 'Courses'} Remaining</p>
         <p><strong>{remainingSkills}</strong> {remainingSkills===1 ? 'Skill' : 'Skills'} Remaining</p>
       </div>

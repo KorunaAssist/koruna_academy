@@ -11,7 +11,6 @@ export function SkillsDashboard({ userId,courses,userProgress,onStartStudy }: {
   userId?: string; courses: Course[]; userProgress: UserProgress[]; onStartStudy: (course: Course) => void;
 }) {
   const [data,setData] = useState<{ skills: Skill[]; requirements: SkillRequirement[]; progress: SkillProgress[] }>({ skills: [],requirements: [],progress: [] });
-  const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [hasLoaded,setHasLoaded] = useState(false);
   const [error,setError] = useState('');
@@ -22,11 +21,11 @@ export function SkillsDashboard({ userId,courses,userProgress,onStartStudy }: {
   const [filter,setFilter] = useState<'all' | 'learning' | 'completed'>('all');
   useEffect(() => {
     let active = true;
-    // The initial request shows loading; later updates keep the cards mounted.
+    // Fetch in the background while keeping the dashboard visible.
     setRefreshing(true);
     skillsService.dashboard().then(next => { if (active) { setData(next); setError(''); setHasLoaded(true); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load skills.'); })
-      .finally(() => { if (active) { setLoading(false); setRefreshing(false); } });
+      .finally(() => { if (active) setRefreshing(false); });
     return () => { active = false; };
   },[userId,userProgress,courses,retry]);
   const lessonCompleted = (r: SkillRequirement) => userProgress.some(p => p.courseId === r.course_id && (p.progressPercent >= 100 || p.completedLessons.includes(r.lesson_id)));
@@ -54,9 +53,8 @@ export function SkillsDashboard({ userId,courses,userProgress,onStartStudy }: {
   useEffect(() => { setPage(current => Math.min(current,pageCount)); },[pageCount]);
   return <section className="lp-workspace lp-learner skills-dashboard" aria-labelledby="skills-title">
     <header className="skills-banner"><h1 id="skills-title">Skills Dashboard</h1><p>Your skills at a glance, based on the training you complete at Koruna Academy.</p></header>
-    {loading && <div className="lp-empty" role="status">Loading your skills...</div>}
     {error && <div className="lp-alert" role="alert">{error}<button className="lp-button" disabled={refreshing} onClick={() => setRetry(n => n+1)}>Retry</button></div>}
-    {!loading && (hasLoaded || !error) && <>
+    <>
       <div className="skills-summary" aria-label="Skills overview">
         <div><span className="lp-stat-icon"><ChartNoAxesCombined size={20}/></span><div><strong>{activeSkills.length}</strong><span>Skills tracked</span></div></div>
         <div><span className="lp-stat-icon"><Target size={20}/></span><div><strong>{averageScore.toFixed(1)} / 10</strong><span>Average score</span></div></div>
@@ -123,8 +121,8 @@ export function SkillsDashboard({ userId,courses,userProgress,onStartStudy }: {
           })}</div></details>}
         </article>;
       })}</div></details>}
-      {!visible.length && <div className="lp-empty"><Layers size={30}/><h3>{data.skills.length ? 'No skills to show' : 'Your skills journey starts here'}</h3><p>{data.skills.length ? 'Try another search or filter to find your next focus.' : 'Skills will appear here when your admin adds them to the Skills Catalogue.'}</p>{data.skills.length > 0 && <button className="lp-button" onClick={() => { setQuery(''); setFilter('all'); setShowArchived(false); }}>Clear filters</button>}</div>}
+      {hasLoaded && !visible.length && <div className="lp-empty"><Layers size={30}/><h3>{data.skills.length ? 'No skills to show' : 'Your skills journey starts here'}</h3><p>{data.skills.length ? 'Try another search or filter to find your next focus.' : 'Skills will appear here when your admin adds them to the Skills Catalogue.'}</p>{data.skills.length > 0 && <button className="lp-button" onClick={() => { setQuery(''); setFilter('all'); setShowArchived(false); }}>Clear filters</button>}</div>}
       <p className="skills-footnote" id="skills-score-note">Scores reflect required training completed: 100% completion equals 10/10. They are not proficiency assessments. Trainer verification and professional certification are tracked separately.</p>
-    </>}
+    </>
   </section>;
 }

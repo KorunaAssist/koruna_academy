@@ -3,7 +3,6 @@ import { LoginPageView } from './components/LoginPageView';
 import { SignupPageView } from './components/SignupPageView';
 import { DashboardView } from './components/DashboardView';
 import { SessionWarningModal } from './components/SessionWarningModal';
-import { LoadingModal } from './components/LoadingModal';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { usePageHistory } from './hooks/usePageHistory';
@@ -191,7 +190,7 @@ export function App() {
         onLogout={logoutNow}
       />
 
-      {!hasCheckedAuthSession && <LoadingModal type="academy" />}
+
 
       {/* View Router */}
       {hasCheckedAuthSession && currentView === 'login' && (

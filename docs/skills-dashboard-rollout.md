@@ -28,9 +28,7 @@ Job roles here are separate from account permissions such as admin or trainer.
 
 Open **Admin Suite → Skills by Role** to add a role, select existing skills, or
 create a new skill and select it. Click **Save Role Skills** to save the role's
-selections. A skill may be shared by multiple roles. In course creation, use
-**Filter skills by role** to find the relevant skills; changing filters preserves
-selected course skills. Role membership does not automatically award skills:
+selections. A skill may be shared by multiple roles. Course creation shows all active skills without a role filter. Role membership does not automatically award skills:
 employees still earn progress through the linked course lessons.
 
 Apply `supabase/migrations/202611110001_employee_course_skills.sql` to an existing
@@ -101,3 +99,7 @@ lesson as an employee and confirm 1/20 and 5%. Link that lesson to a second skil
 with the same 20 requirements and confirm both update. Repeat an enrolment or
 complete the course and confirm no duplicate credit. Sign in as another employee
 and confirm their progress remains separate.
+
+## Updated course creation catalogue
+
+Apply `supabase/migrations/202611120002_course_creation_skills.sql` after the earlier skills migrations. It activates the 45 updated skills and archives other catalogue entries. Existing course and lesson links, role mappings, descriptions, and learner progress are retained. Previously selected archived skills remain visible on existing courses. This also updates the shared catalogue used by the skills dashboard.

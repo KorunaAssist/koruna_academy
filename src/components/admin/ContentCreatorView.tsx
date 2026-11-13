@@ -1,4 +1,3 @@
-import { roleSkillsService,type SkillRole } from '../../services/roleSkills';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen, Zap, FileText, CloudUpload, Trash2, RefreshCw, Layers, Plus, Award,
@@ -10,6 +9,7 @@ import type { UserSessionData } from '../../services/auth';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { CourseCard, CourseBannerHeader } from '../courses/CourseCard';
 import { skillsService,type Skill } from '../../services/skills';
+import { LoadingModal } from '../LoadingModal';
 
 export interface ContentCreatorViewProps {
   userSession?: UserSessionData;
@@ -117,6 +117,46 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 }) => {
   const [tab, setTab] = useState<TabId>('details');
   const [isUploading, setIsUploading] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveInProgress = useRef(false);
+  const publishDialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (confirmPublish) publishDialogRef.current?.showModal();
+    else publishDialogRef.current?.close();
+  }, [confirmPublish]);
+
+  const requestPublish = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saveInProgress.current || isUploading || isCardImageUploading) return;
+    if (!courseForm.title.trim() || !courseForm.code.trim()) {
+      showToast('Course Title and Course Code are required.');
+      setTab('details');
+      return;
+    }
+    if (assignedUserEmails.length > 0 && !assignmentDueDate) {
+      showToast('Please choose an assignment deadline before publishing.');
+      setTab('access');
+      return;
+    }
+    setConfirmPublish(true);
+  };
+
+  const confirmSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saveInProgress.current) return;
+    saveInProgress.current = true;
+    setConfirmPublish(false);
+    setIsSaving(true);
+    try {
+      await handleSaveCourse(event);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to finish saving the course. Please review and try again.');
+    } finally {
+      saveInProgress.current = false;
+      setIsSaving(false);
+    }
+  };
   const [isCardImageUploading, setIsCardImageUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -129,9 +169,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [showTips, setShowTips] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
-  const [skillRoles,setSkillRoles] = useState<SkillRole[]>([]);
-  const [skillRoleFilter,setSkillRoleFilter] = useState('');
-  const [roleSkillsError,setRoleSkillsError] = useState('');
+  const [skillSearch,setSkillSearch] = useState('');
   const [skills,setSkills] = useState<Skill[]>([]);
   const [skillsError,setSkillsError] = useState('');
   const [skillsLoading,setSkillsLoading] = useState(true);
@@ -139,8 +177,6 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   useEffect(() => {
     let active = true;
     setSkillsLoading(true);
-    roleSkillsService.load().then(rows => { if (active) { setSkillRoles(rows);setRoleSkillsError(''); } })
-      .catch(() => { if (active) setRoleSkillsError('Role filters are unavailable. Apply the role skills migration and reopen this page.'); });
     skillsService.catalogue().then(rows => { if (active) { setSkills(rows); setSkillsError(''); } })
       .catch(reason => { if (active) setSkillsError(reason instanceof Error ? reason.message : 'Unable to load skills.'); })
       .finally(() => { if (active) setSkillsLoading(false); });
@@ -150,6 +186,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const isDocument = courseForm.contentType === 'document';
   const patch = (p: Record<string, any>) => setCourseForm((prev: any) => ({ ...prev, ...p }));
   const selectedSkillIds = courseForm.skillIds || [];
+  const visibleSkills = skills.filter(skill => (!skill.archived || selectedSkillIds.includes(skill.id)) && skill.name.toLowerCase().includes(skillSearch.trim().toLowerCase()));
   const toggleCourseSkill = (id: string,checked: boolean) => {
     patch({ skillIds: checked ? [...selectedSkillIds,id] : selectedSkillIds.filter(skillId => skillId !== id) });
     setCourseLessons(previous => previous.map(lesson => {
@@ -360,7 +397,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
     <div className="cc">
       <style>{CSS}</style>
 
-      <form id="trainer-course-form" onSubmit={handleSaveCourse}>
+      <form id="trainer-course-form" onSubmit={requestPublish} inert={isSaving}>
         <header className="cc-bar">
           <div className="cc-bar-main">
             <div className="cc-bar-title">
@@ -495,21 +532,32 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
               </label>
             </section>
 
-            {!isDocument && <section className="cc-card">
-              <div className="cc-card-h"><span><Award size={14}/> Skills taught by this course</span></div>
-              <p className="cc-muted">Select one or more skills. All lessons contribute by default; adjust each lesson’s skills in the Lessons tab. Each linked lesson has equal weight across all courses teaching that skill.</p>
+            {!isDocument && <section className="cc-card cc-skills-card" aria-labelledby="course-skills-title">
+              <div className="cc-skills-heading">
+                <div className="cc-skills-icon"><Award size={21}/></div>
+                <div><h3 id="course-skills-title">Skills taught by this course</h3><p>Choose the skills learners will build along the way.</p></div>
+                <span className="cc-skills-count" aria-live="polite">{selectedSkillIds.length} selected</span>
+              </div>
               {skillsLoading && <p role="status">Loading skill catalogue…</p>}
               {skillsError && <p role="alert">{skillsError} <button type="button" className="cc-btn sm" onClick={() => setSkillsRetry(n => n+1)}>Retry</button></p>}
-              {roleSkillsError && <p role="status" className="cc-muted">{roleSkillsError}</p>}
-              <label className="cc-f">Filter skills by role<select value={skillRoleFilter} onChange={e => setSkillRoleFilter(e.target.value)}>
-                <option value="">All roles / all skills</option>
-                {skillRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
-              </select></label>
-              <p className="cc-muted">{selectedSkillIds.length} skills selected. Changing the filter keeps your selections.</p>
-              <div className="skill-choice-grid">{skills.filter(s => (!s.archived || selectedSkillIds.includes(s.id)) && (!skillRoleFilter || skillRoles.find(role => role.id === skillRoleFilter)?.skillIds.includes(s.id) || selectedSkillIds.includes(s.id))).map(skill => <label className="skill-choice" key={skill.id}>
+              <div className="cc-skills-controls">
+              <div className="cc-f"><span id="course-skills-select-label">Course skills</span>
+              <input type="search" className="cc-in" aria-label="Search course skills" placeholder="Search skills..." value={skillSearch} onChange={event => setSkillSearch(event.target.value)} />
+                <div className="cc-skills-options" role="group" aria-label="Skills taught by this course">
+                {visibleSkills.map(skill => <label className={`skill-choice${selectedSkillIds.includes(skill.id) ? ' is-selected' : ''}`} key={skill.id}>
                 <input type="checkbox" checked={selectedSkillIds.includes(skill.id)} onChange={e => toggleCourseSkill(skill.id,e.target.checked)}/>
                 <span>{skill.name}{skill.archived ? ' (archived)' : ''}</span>
-              </label>)}</div>
+              </label>)}
+                {skillsLoading && <p className="cc-muted">Loading skills...</p>}
+                {!skillsLoading && !skillsError && !visibleSkills.length && <p className="cc-muted">{skillSearch.trim() ? 'No matching skills. Try another search.' : 'No skills available.'}</p>}
+                </div>
+              </div>
+              </div>
+              <p className="cc-skills-hint">Select one or more skills taught by this course.</p>
+              {selectedSkillIds.length > 0 && <ul className="cc-skills-chips" aria-label="Selected skills">
+                {selectedSkillIds.map(id => <li key={id}><span>{skills.find(skill => skill.id === id)?.name || 'Selected skill'}</span><button type="button" aria-label={`Remove ${skills.find(skill => skill.id === id)?.name || 'skill'}`} onClick={() => toggleCourseSkill(id, false)}><X size={13}/></button></li>)}
+              </ul>}
+              <div className="cc-skills-note"><BookOpen size={16}/><p>All lessons contribute by default. Adjust skills in the <strong>Lessons</strong> tab. Each linked lesson carries equal weight across courses teaching that skill.</p></div>
               {!skillsLoading && !skillsError && skills.every(s => s.archived) && <p className="cc-muted">An admin needs to create skills in Admin Suite → Skills Catalogue first.</p>}
             </section>}
 
@@ -831,25 +879,27 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
         {/* ===== ACCESS ===== */}
         {tab === 'access' && (
           <div className="cc-grid-access">
-            <section className="cc-card">
-              <div className="cc-card-h between">
-                <span><Users size={14} /> Assign accounts</span>
-                <em className="cc-tag ok">{assignedUserEmails.length} enrolled · {employees.length ? Math.round((assignedCount / employees.length) * 100) : 0}%</em>
+            <section className="cc-card cc-assign-card" aria-labelledby="assign-accounts-title">
+              <div className="cc-assign-heading">
+                <div className="cc-skills-icon"><Users size={21}/></div>
+                <div className="cc-assign-title"><h3 id="assign-accounts-title">Assign accounts</h3><p>Choose who should complete this {isDocument ? 'document' : 'course'}.</p></div>
+                <span className="cc-assign-total" aria-live="polite"><strong>{assignedCount}<span> / {employees.length}</span></strong><span>accounts enrolled</span></span>
               </div>
+              <div className="cc-assign-progress" role="progressbar" aria-label="Accounts enrolled" aria-valuemin={0} aria-valuemax={employees.length || 1} aria-valuenow={assignedCount}><div style={{ width: `${employees.length ? (assignedCount / employees.length) * 100 : 0}%` }}/></div>
 
-              <div className="cc-row wrap between">
+              <div className="cc-row wrap between cc-assign-toolbar">
                 <div className="cc-pills">
                   {([['all', `All ${employees.length}`], ['assigned', `Enrolled ${assignedCount}`], ['unassigned', `Open ${employees.length - assignedCount}`]] as const).map(([k, l]) => (
-                    <button key={k} type="button" className={assignTab === k ? 'on' : ''} onClick={() => setAssignTab(k)}>{l}</button>
+                    <button key={k} type="button" aria-pressed={assignTab === k} className={assignTab === k ? 'on' : ''} onClick={() => setAssignTab(k)}>{l}</button>
                   ))}
                 </div>
                 <div className="cc-row">
-                  <button type="button" className="cc-btn sm" onClick={selectFiltered}>Select {filtered.length}</button>
-                  <button type="button" className="cc-btn sm danger" onClick={clearFiltered}>Clear</button>
+                  <button type="button" className="cc-btn sm" disabled={!filtered.length} onClick={selectFiltered}><Check size={14}/> Select all shown</button>
+                  <button type="button" className="cc-btn sm ghost" disabled={!filtered.some(emp => assignedUserEmails.includes(emp.email))} onClick={clearFiltered}>Clear shown</button>
                 </div>
               </div>
 
-              <label className="cc-f">
+              <label className="cc-f cc-assign-deadline">
                 <span>Assignment deadline</span>
                 <input
                   type="date"
@@ -861,18 +911,19 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                 <em>Assigned accounts must complete this by the selected date.</em>
               </label>
 
-              <div className="cc-row">
+              <div className="cc-row cc-assign-filters">
                 <div className="cc-search grow">
                   <Search size={14} />
-                  <input className="cc-in" placeholder="Search name, email, department..." value={employeeSearch} onChange={(e) => setEmployeeSearch(e.target.value)} />
-                  {employeeSearch && <button type="button" onClick={() => setEmployeeSearch('')}><X size={13} /></button>}
+                  <input className="cc-in" aria-label="Search accounts" placeholder="Search name, email, or department" value={employeeSearch} onChange={(e) => setEmployeeSearch(e.target.value)} />
+                  {employeeSearch && <button type="button" aria-label="Clear account search" onClick={() => setEmployeeSearch('')}><X size={13} /></button>}
                 </div>
-                <select className="cc-in cc-w-dept" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+                <select className="cc-in cc-w-dept" aria-label="Filter by department" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
                   <option value="All">All departments</option>
                   {departments.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
 
+              <div className="cc-assign-list-label"><span>Accounts</span><span aria-live="polite">{filtered.length} shown</span></div>
               <div className="cc-people">
                 {filtered.map((emp) => {
                   const on = assignedUserEmails.includes(emp.email);
@@ -881,7 +932,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                       <input type="checkbox" checked={on}
                         onChange={(e) => setAssignedUserEmails((p) => (e.target.checked ? [...p, emp.email] : p.filter((x) => x !== emp.email)))} />
                       <span className="cc-av" style={{ background: avatarColor(emp.name) }}>{getInitials(emp.name)}</span>
-                      <div><strong>{emp.name}</strong><span>{emp.department ? `${emp.department} · ` : ''}{emp.email}</span></div>
+                      <div><strong title={emp.name}>{emp.name}</strong><span title={emp.email}>{emp.email}</span>{emp.department && <small>{emp.department}</small>}</div>
                     </label>
                   );
                 })}
@@ -961,7 +1012,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 
                 <div className="cc-review-actions">
                   {editingCourseId && <button type="button" className="cc-btn grow" onClick={resetCourseFormState}>Cancel edit</button>}
-                  <button type="submit" disabled={isUploading} className="cc-btn primary publish grow">
+                  <button type="submit" disabled={isUploading || isCardImageUploading || isSaving} className="cc-btn primary publish grow">
                     {editingCourseId ? <Check size={14} /> : <Zap size={14} />} {editingCourseId ? 'Save changes' : 'Publish'}
                   </button>
                 </div>
@@ -985,6 +1036,24 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 
       </form>
 
+      <dialog ref={publishDialogRef} className="cc-publish-dialog" aria-labelledby="cc-publish-title" aria-describedby="cc-publish-description" onCancel={() => setConfirmPublish(false)}>
+        <form onSubmit={confirmSave}>
+          <span className="cc-publish-icon"><CloudUpload size={25} /></span>
+          <h2 id="cc-publish-title">{editingCourseId ? 'Save changes?' : 'Publish this course?'}</h2>
+          <p id="cc-publish-description">
+            {editingCourseId ? 'Save your updates to' : 'You are about to publish'} <strong>{courseForm.title}</strong>.
+            {assignedUserEmails.length > 0
+              ? ` ${assignedUserEmails.length} learner${assignedUserEmails.length === 1 ? '' : 's'} will be assigned with a deadline of ${assignmentDueDate}.`
+              : ' No learners are selected for assignment.'}
+          </p>
+          <div className="cc-publish-actions">
+            <button type="button" autoFocus className="cc-btn" onClick={() => setConfirmPublish(false)}>Keep editing</button>
+            <button type="submit" className="cc-btn primary publish">{editingCourseId ? 'Save changes' : 'Publish course'}</button>
+          </div>
+        </form>
+      </dialog>
+      {isSaving && <LoadingModal variant="modal" message="Saving course and learner assignments. Please wait..." />}
+
       {videoModal && (
         <div className="cc-modal" onClick={() => setVideoModal(null)}>
           <div className="cc-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1005,6 +1074,12 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 };
 
 const CSS = `
+.cc-publish-dialog{width:calc(100% - 2rem);max-width:460px;border:1px solid #e5e7eb;border-radius:18px;padding:28px;color:#111827;box-shadow:0 24px 70px #0f172a33}
+.cc-publish-dialog::backdrop{background:rgba(15,23,42,.6);backdrop-filter:blur(4px)}
+.cc-publish-icon{display:inline-flex;padding:12px;border-radius:14px;background:#fdf2f8;color:#AF1F60}
+.cc-publish-dialog h2{font-size:21px;margin:18px 0 10px}
+.cc-publish-dialog p{font-size:14px;line-height:1.65;color:#6b7280;overflow-wrap:anywhere}
+.cc-publish-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-top:24px}
 .cc{--p:#AF1F60;--p-dark:#97184f;--ps:#fdf2f8;--ln:#e5e7eb;--ink:#111827;--mu:#6b7280;--good:#16a34a;--warn:#d97706;
   font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;color:var(--ink);padding-bottom:3rem}
 .cc *{box-sizing:border-box}
@@ -1101,6 +1176,32 @@ const CSS = `
 .cc-in{width:100%;height:42px;padding:0 .8rem;border:1px solid var(--ln);border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:.92rem}
 textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical}
 .cc-in:hover{border-color:#cbd5e1}.cc-in:focus{border-color:var(--p);outline:0;box-shadow:0 0 0 3px var(--ps)}
+.cc-skills-card{padding:22px!important}
+.cc-skills-heading{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.cc-skills-icon{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;background:var(--ps);color:var(--p);border:1px solid #f5dbe7;border-radius:12px}
+.cc-skills-heading h3{margin:0;font-size:1rem;line-height:1.4;font-weight:750}
+.cc-skills-heading p{margin:4px 0 0;font-size:.82rem;color:var(--mu);line-height:1.5}
+.cc-skills-count{margin-left:auto;flex-shrink:0;border-radius:999px;padding:5px 10px;background:var(--ps);color:var(--p);font-size:.75rem;font-weight:700}
+.cc-skills-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.cc-skills-controls .cc-f{min-width:0;margin:0;gap:8px}
+.cc-skills-controls .cc-f>span{font-size:.78rem;font-weight:650;color:#475569}
+.cc-skills-controls .cc-in{height:46px;font-size:.85rem;border-radius:10px}
+.cc-skills-hint{margin:10px 0 0;color:var(--mu);font-size:.76rem;line-height:1.6}
+.cc-skills-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
+.cc-skills-chips li{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 8px 6px 11px;border:1px solid #f1d5e2;border-radius:8px;background:var(--ps);color:var(--p);font-size:.76rem;line-height:1.5}
+.cc-skills-chips li span{overflow-wrap:anywhere}
+.cc-skills-chips button{display:grid;place-items:center;flex-shrink:0;width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:inherit;cursor:pointer}
+.cc-skills-chips button:hover{background:#f5dbe7}
+.cc-skills-note{display:flex;align-items:flex-start;gap:9px;margin-top:20px;padding:12px 14px;border:1px solid #edf0f4;border-radius:10px;background:#f8fafc;color:#64748b}
+.cc-skills-note>svg{flex-shrink:0;margin-top:2px}
+.cc-skills-note p{margin:0;font-size:.76rem;line-height:1.65}
+@media(max-width:640px){.cc-skills-controls{grid-template-columns:1fr}.cc-skills-card{padding:16px!important}.cc-skills-heading{flex-wrap:wrap}.cc-skills-heading>div:nth-child(2){flex:1;min-width:160px}.cc-skills-count{margin-left:56px}}
+.cc-skills-options{max-height:300px;overflow-y:auto;overflow-x:hidden;padding:6px;background:#fff;border:1px solid var(--ln);border-radius:8px}
+.cc-skills-options .skill-choice{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;border:0;border-radius:6px;margin:0;padding:11px 12px;text-align:left;font-size:.82rem;line-height:1.5;cursor:pointer}
+.cc-skills-options .skill-choice span{min-width:0;overflow-wrap:anywhere}
+.cc-skills-options input{width:16px;height:16px;flex-shrink:0;accent-color:var(--p)}
+.cc-skills-options .skill-choice:hover,.cc-skills-options .skill-choice:focus-within{background:var(--ps)}
+.cc-skills-options .skill-choice.is-selected{background:var(--ps)}
 .cc-title-in{font-weight:700;height:40px}
 .cc-w-type{width:150px;flex-shrink:0}.cc-w-dept{width:160px;flex-shrink:0}
 .cc-seg{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;background:#f8fafc;padding:.35rem;border-radius:10px;border:1px solid #eef2f7}
@@ -1171,6 +1272,38 @@ textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical
 .cc-person strong,.cc-files strong{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cc-person span,.cc-files span{font-size:10.5px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cc-empty-box{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:1.2rem;color:var(--mu);background:#f8fafc;border:1px dashed #cbd5e1;border-radius:9px}
+.cc-assign-card{padding:22px;gap:18px}
+.cc-assign-heading{display:flex;align-items:center;gap:12px}
+.cc-assign-title{flex:1;min-width:0}
+.cc-assign-title h3{margin:0;font-size:1rem;line-height:1.4;font-weight:750}
+.cc-assign-title p{margin:4px 0 0;color:var(--mu);font-size:.82rem;line-height:1.5}
+.cc-assign-total{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.cc-assign-total>strong{font-size:1.35rem;color:var(--p);line-height:1.2}
+.cc-assign-total strong span{font-size:.95rem;font-weight:500;color:#94a3b8}
+.cc-assign-total>span{font-size:.72rem;color:var(--mu)}
+.cc-assign-progress{height:5px;background:#f1f5f9;border-radius:99px;overflow:hidden;margin-top:-4px}
+.cc-assign-progress>div{height:100%;background:var(--p);border-radius:99px;transition:width .2s}
+.cc-assign-toolbar .cc-pills{padding:4px;border:1px solid #edf0f4;border-radius:10px;gap:3px}
+.cc-assign-toolbar .cc-pills button{padding:7px 12px;font-size:.78rem;border-radius:7px}
+.cc-assign-toolbar .cc-pills button.on{color:var(--p)}
+.cc-assign-deadline{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,240px);align-items:center;gap:5px 20px;background:#f8fafc;border:1px solid #edf0f4;border-radius:10px;padding:14px 16px}
+.cc-assign-deadline>span{font-size:.82rem;font-weight:650}
+.cc-assign-deadline input{grid-column:2;grid-row:1 / span 2;background:#fff}
+.cc-assign-deadline em{grid-column:1;font-size:.75rem;line-height:1.5}
+.cc-assign-filters .cc-in{height:44px;border-radius:10px;font-size:.85rem}
+.cc-assign-filters .cc-w-dept{width:210px}
+.cc-assign-list-label{display:flex;justify-content:space-between;font-size:.75rem;font-weight:650;color:#64748b;margin-bottom:-8px}
+.cc-assign-list-label>span:last-child{font-weight:400}
+.cc-assign-card .cc-people{grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;max-height:420px;padding:3px}
+.cc-assign-card .cc-person{gap:10px;padding:13px 12px;border-radius:10px;transition:border-color .15s,background .15s}
+.cc-assign-card .cc-person:focus-within{outline:2px solid var(--p);outline-offset:1px}
+.cc-assign-card .cc-person input{width:16px;height:16px}
+.cc-assign-card .cc-person .cc-av{width:36px;height:36px;color:#fff;font-size:11px}
+.cc-assign-card .cc-person div{gap:3px}
+.cc-assign-card .cc-person strong{font-size:.82rem}
+.cc-assign-card .cc-person div>span{font-size:.73rem}
+.cc-assign-card .cc-person small{font-size:.68rem;color:#64748b;overflow-wrap:anywhere}
+@media(max-width:640px){.cc-assign-card{padding:16px}.cc-assign-heading{flex-wrap:wrap}.cc-assign-total{margin-left:auto}.cc-assign-deadline{grid-template-columns:1fr}.cc-assign-deadline input{grid-column:1;grid-row:2}.cc-assign-deadline em{grid-row:3}.cc-assign-filters{flex-wrap:wrap}.cc-assign-filters .cc-search,.cc-assign-filters .cc-w-dept{width:100%;flex-basis:100%}.cc-assign-card .cc-people{grid-template-columns:minmax(0,1fr)}.cc-assign-toolbar .cc-pills button{padding:7px 9px}}
 .cc-files{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
 .cc-files li{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border:1px solid var(--ln);border-radius:9px}
 .cc-ft{font-size:10px;font-weight:800;padding:.2rem .35rem;border-radius:5px;flex-shrink:0}

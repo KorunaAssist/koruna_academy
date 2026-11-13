@@ -424,7 +424,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
         <Award size={16} /> Save template
       </button>
     );
-  } else if (activeInnerTab === 'overview' || activeInnerTab === 'settings') {
+  } else if (activeInnerTab === 'settings') {
     headerActions = (
       <button className="as-btn as-btn--secondary" onClick={() => { loadPlatformData(); showToast('Platform data refreshed.'); }}>
         <RefreshCw size={15} /> Refresh data
@@ -438,7 +438,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
     <div className="as-root">
       <AdminSuiteStyles />
 
-      {meta && activeInnerTab !== 'creator' && (
+      {meta && activeInnerTab !== 'creator' && activeInnerTab !== 'overview' && (
         <div className="as-header">
           <div>
             <h1 className="as-title">{meta.title}</h1>

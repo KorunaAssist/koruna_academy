@@ -41,10 +41,10 @@ export function CareerPathView({userSession,courses,userProgress,assignedCourseI
     finally {setBusy(false);}
   };
   return <section className="lp-workspace lp-learner mc-page" aria-labelledby="career-title">
-    <header className="mc-heading"><div><span className="lp-eyebrow">YOUR NEXT CHAPTER</span><h1 id="career-title">My Career</h1><p>Build your skills. Find your direction. Take the next step.</p></div><span className="mc-heading-label"><TrendingUp size={18}/> Your growth, your journey</span></header>
+    <header className="mc-heading"><div><span className="lp-eyebrow">LEARNING & DEVELOPMENT</span><h1 id="career-title">Career Path</h1><p>A clear view of where you are, where you can go, and how to get there.</p></div><span className="mc-heading-label"><TrendingUp size={18}/> Your growth, your journey</span></header>
     {error && <div role="alert" className="lp-alert">{error}</div>}
     {notice && <p role="status" className="lp-notice">{notice}</p>}
-    {loading && !data && <p role="status">Loading career paths...</p>}
+    {!data && <div className="mc-welcome"><span className="mc-icon"><TrendingUp size={24}/></span><div><h2>Your next step starts here</h2><p>Explore the roles ahead of you and build the skills to reach them.</p></div><button className="lp-button" onClick={() => onTabChange('skills')}>View my skills</button></div>}
     {!data && !loading && <button className="lp-button" onClick={() => setRefresh(n => n+1)}>Retry</button>}
     {data && <MyCareerContent key={data.goals.find(goal => goal.user_id===userSession.id)?.path_id || 'no-goal'} workspace={data} userSession={userSession} courses={courses} userProgress={userProgress} assignedCourseIds={assignedCourseIds} onStartStudy={onStartStudy} onTabChange={onTabChange} onSetGoal={setGoal} onRefresh={() => setRefresh(n => n+1)} loading={loading} busy={busy}/>}
     <p className="mc-footnote">Progress reflects training readiness. Speak with your team leader about promotions and role opportunities.</p>

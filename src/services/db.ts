@@ -69,6 +69,7 @@ export interface UserProgress {
   dueDate?: string; // Target completion date
   assignedBy?: string;
   lastViewedAt?: string;
+  completedAt?: string;
 }
 
 export interface Badge {
@@ -499,7 +500,8 @@ const mapDBProgress = (db: any): UserProgress => ({
   overdue: Boolean(db.overdue),
   dueDate: db.due_date || undefined,
   assignedBy: db.assigned_by || undefined,
-  lastViewedAt: db.last_viewed_at || undefined
+  lastViewedAt: db.last_viewed_at || undefined,
+  completedAt: db.completed_at || undefined
 });
 
 const mapProgressToDB = (p: UserProgress) => {
@@ -1149,7 +1151,7 @@ export const dbService = {
           const request = operation === 'update'
             ? supabase.from('user_progress').update(values).match(identity)
             : supabase.from('user_progress').insert({ ...identity, ...values });
-          return request.select('course_id');
+          return request.select('course_id, completed_at');
         };
         let { data, error } = await send(fields);
         // Older installations may lack these optional tracking columns. Never
@@ -1161,6 +1163,7 @@ export const dbService = {
           delete fallback.learning_hours;
           ({ data, error } = await send(fallback));
         }
+        if (data?.[0]) prog.completedAt = data[0].completed_at || undefined;
         return { count: data?.length || 0, error };
       };
       await persistProgress({ update: () => write('update'), insert: () => write('insert') });
@@ -1174,8 +1177,10 @@ export const dbService = {
       (p.applicationId || 0) === (prog.applicationId || 0)
     );
     if (idx !== -1) {
+      prog.completedAt = list[idx].completedAt || (prog.progressPercent >= 100 ? new Date().toISOString() : undefined);
       list[idx] = prog;
     } else {
+      prog.completedAt = prog.progressPercent >= 100 ? new Date().toISOString() : undefined;
       list.push(prog);
     }
     setStorageItem('koruna_progress', filterStaticSeeds(list));
