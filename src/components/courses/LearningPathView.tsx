@@ -19,9 +19,10 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
   const [busy,setBusy] = useState(false);
   const [actionError,setActionError] = useState('');
   const [query,setQuery] = useState('');
-  const [tab,setTab] = useState<'mine' | 'explore'>('mine');
+  const [tab,setTab] = useState<'mine' | 'assigned' | 'explore'>('mine');
   const myEnrolments = data.enrolments.filter(e => e.user_id === userSession.id);
   const myVersions = myEnrolments.flatMap(e => data.versions.filter(v => v.id === e.version_id));
+  const assignedVersions = myVersions.filter(v => myEnrolments.some(e => e.version_id === v.id && e.source === 'assigned'));
   const published = data.versions.filter(v => v.status === 'published' && !data.versions.some(other =>
     other.path_id === v.path_id && other.status === 'published' && other.version_number > v.version_number));
   const discover = published.filter(v => !myEnrolments.some(e => e.path_id === v.path_id));
@@ -39,7 +40,7 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
   };
   const matches = (v: PathVersion) => `${v.name} ${v.description}`.toLowerCase().includes(query.toLowerCase());
   const completedCount = myEnrolments.filter(e => data.progress.some(p => p.enrolment_id === e.id && p.progress_percent >= 100)).length;
-  const visiblePaths = (tab === 'mine' ? myVersions : discover).filter(matches);
+  const visiblePaths = (tab === 'mine' ? myVersions : tab === 'assigned' ? assignedVersions : discover).filter(matches);
   const card = (v: PathVersion) => {
     const joined = myEnrolments.find(e => e.version_id === v.id);
     const progress = data.progress.find(p => p.enrolment_id === joined?.id);
@@ -64,8 +65,8 @@ export function LearningPathView({ userSession,courses = [],userProgress = [],on
         </div>
       </div>
       <div className="lp-library-heading"><div><h2>Your path to what?s next</h2><p className="lp-muted">A roadmap for every next step in your career.</p></div><label className="lp-search-box"><Search size={18}/><input aria-label="Search learning paths" type="search" placeholder="Search learning paths..." value={query} onChange={e => setQuery(e.target.value)}/></label></div>
-      <div className="lp-tabs" role="group" aria-label="Learning path collection"><button aria-pressed={tab === 'mine'} className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My learning paths <span>{myVersions.length}</span></button><button aria-pressed={tab === 'explore'} className={tab === 'explore' ? 'active' : ''} onClick={() => setTab('explore')}>Explore paths <span>{discover.length}</span></button></div>
-      <div className="lp-card-grid">{visiblePaths.map(card)}{!visiblePaths.length && <div className="lp-empty"><BookOpen size={30}/><h3>{query ? 'No matching paths' : tab === 'mine' ? 'Your journey is ready to begin' : 'All caught up'}</h3><p>{query ? 'Try a different name or keyword.' : tab === 'mine' ? 'Explore the available learning paths and find your next goal.' : published.length ? 'You have joined all available paths. Keep going with your courses below.' : 'New learning paths will appear here when they are published.'}</p>{tab === 'mine' && !query && <button className="lp-button primary" onClick={() => setTab('explore')}>Explore paths <ArrowRight size={16}/></button>}</div>}</div>
+      <div className="lp-tabs" role="group" aria-label="Learning path collection"><button aria-pressed={tab === 'mine'} className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My learning paths <span>{myVersions.length}</span></button><button aria-pressed={tab === 'assigned'} className={tab === 'assigned' ? 'active' : ''} onClick={() => setTab('assigned')}>Assigned <span>{assignedVersions.length}</span></button><button aria-pressed={tab === 'explore'} className={tab === 'explore' ? 'active' : ''} onClick={() => setTab('explore')}>Explore paths <span>{discover.length}</span></button></div>
+      <div className="lp-card-grid">{visiblePaths.map(card)}{!visiblePaths.length && <div className="lp-empty"><BookOpen size={30}/><h3>{query ? 'No matching paths' : tab === 'mine' ? 'Your journey is ready to begin' : tab === 'assigned' ? 'No assigned learning paths' : 'All caught up'}</h3><p>{query ? 'Try a different name or keyword.' : tab === 'assigned' ? 'Learning paths assigned by your admin will appear here.' : tab === 'mine' ? 'Explore the available learning paths and find your next goal.' : published.length ? 'You have joined all available paths. Keep going with your courses below.' : 'New learning paths will appear here when they are published.'}</p>{tab === 'mine' && !query && <button className="lp-button primary" onClick={() => setTab('explore')}>Explore paths <ArrowRight size={16}/></button>}</div>}</div>
       {selected && <section className="lp-panel lp-stack" aria-label={`${selected.name} course sequence`}>
         <div className="lp-toolbar"><div><span className="lp-eyebrow">COURSE ROADMAP · VERSION {selected.version_number}</span><h2>{selected.name}</h2></div>
           {enrolment ? <strong>{pathProgress?.progress_percent || 0}% complete</strong> : <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.enrol(selected.path_id); await reload(); })}>{busy ? 'Joining...' : 'Join Learning Path'}</button>}

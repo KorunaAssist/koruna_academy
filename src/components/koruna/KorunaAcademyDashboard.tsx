@@ -13,6 +13,7 @@ import type { Course, DatabaseUser, UserProgress } from '../../services/db';
 import { CourseBannerHeader } from '../courses/CourseCard';
 import { isCourseAssigned } from '../../services/courseAccess';
 import { dashboardLearningStats } from '../../services/dashboardLearningStats';
+import { AssignedLearningPaths } from '../courses/AssignedLearningPaths';
 
 export interface KorunaAcademyDashboardProps {
   view?: 'dashboard' | 'my_courses';
@@ -324,6 +325,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
       <div className="koruna-subview-wrapper">
         <h1>My Courses</h1>
         <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Your assigned courses, deadlines, and learning progress.</p>
+        <AssignedLearningPaths userSession={userSession} onOpen={() => onTabChange('learning_path')}/>
         <div role="group" aria-label="Filter courses by completion" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
           {(['all', 'incomplete', 'completed'] as const).map(filter => (
             <button key={filter} type="button" className={completionFilter === filter ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} aria-pressed={completionFilter === filter} onClick={() => setCompletionFilter(filter)}>
@@ -338,6 +340,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
   return (
     <div style={{ padding: '1.75rem 2rem 3rem 2rem', backgroundColor: '#f8fafc', minHeight: '100%' }}>
+      <AssignedLearningPaths userSession={userSession} onOpen={() => onTabChange('learning_path')}/>
       {/* HEADER ROW */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
