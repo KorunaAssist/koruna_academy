@@ -4,12 +4,21 @@ const storageKey = 'koruna_trainer_signatures';
 
 export async function getTrainerSignature(profileId: string, trainerName?: string): Promise<string | null> {
   if (!isSupabaseConfigured()) return JSON.parse(localStorage.getItem(storageKey) || '{}')[profileId] || null;
-  // A creator ID on a legacy course may belong to someone other than its
-  // named trainer. Never place that person's signature above another name.
   if (trainerName !== undefined) {
     if (!trainerName.trim()) return null;
-    const profile = await supabase.from('profiles').select('full_name').eq('id', profileId).maybeSingle();
-    if (profile.error || profile.data?.full_name?.trim().toLowerCase() !== trainerName.trim().toLowerCase()) return null;
+    // Learners cannot read another trainer's profile under RLS. The checked
+    // RPC uses the course creator ID as the signature authority; display names
+    // can change after a course has been published.
+    const { data, error } = await supabase.rpc('get_trainer_signature', {
+      p_profile_id: profileId, p_trainer_name: trainerName,
+    });
+    if (error) {
+      if (['42883','PGRST202','PGRST205'].includes(error.code || '')) {
+        throw new Error('Certificate signatures are not set up yet. Apply the certificate signature lookup migration.');
+      }
+      throw new Error('Unable to load trainer signature.');
+    }
+    return typeof data === 'string' ? data : null;
   }
   const { data, error } = await supabase.from('trainer_signatures').select('image').eq('profile_id', profileId).maybeSingle();
   if (error) throw new Error('Unable to load trainer signature.');
