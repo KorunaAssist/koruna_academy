@@ -29,6 +29,7 @@ export interface ContentCreatorViewProps {
     imgBg: string;
     imageUrl?: string;
     trainer?: string;
+    creatorId?: string;
     attachments?: { name: string; url: string; size: number }[];
     contentType?: 'course' | 'document';
     requiresCertification?: boolean;
@@ -184,6 +185,10 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   },[userSession?.id,skillsRetry]);
 
   const isDocument = courseForm.contentType === 'document';
+  const canReassignCreator = userSession?.role === 'admin';
+  const eligibleCreators = users.filter(user => user.role === 'trainer' || user.id === userSession?.id);
+  const selectedCreator = eligibleCreators.find(user => user.id === courseForm.creatorId) ||
+    eligibleCreators.find(user => user.id === userSession?.id);
   const patch = (p: Record<string, any>) => setCourseForm((prev: any) => ({ ...prev, ...p }));
   const selectedSkillIds = courseForm.skillIds || [];
   const visibleSkills = skills.filter(skill => (!skill.archived || selectedSkillIds.includes(skill.id)) && skill.name.toLowerCase().includes(skillSearch.trim().toLowerCase()));
@@ -511,12 +516,19 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                     <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
                   </select>
                 </label>
-                <div className="cc-f">
+                <label className="cc-f">
                   <span>Course creator</span>
-                  <div className="cc-in" style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', color: '#475569' }}>
-                    {editingCourseId ? 'The original creator is retained when this course is updated.' : userSession?.name || 'Current user'}
-                  </div>
-                </div>
+                  {editingCourseId && !canReassignCreator ? <div className="cc-in" style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', color: '#475569' }}>
+                    {selectedCreator?.name || courseForm.trainer || 'Original creator'}
+                  </div> : <select className="cc-in" value={courseForm.creatorId || userSession?.id || ''}
+                    onChange={event => {
+                      const creator = eligibleCreators.find(user => user.id === event.target.value);
+                      patch({ creatorId: event.target.value, trainer: creator?.name || courseForm.trainer });
+                    }}>
+                    {eligibleCreators.map(user => <option key={user.id} value={user.id}>{user.name}{user.id === userSession?.id ? ' (You)' : ''}</option>)}
+                  </select>}
+                  <small className="cc-muted">{editingCourseId && !canReassignCreator ? 'Only an administrator can change the creator and certificate signatory.' : 'The selected creator owns this course and signs its certificates.'}</small>
+                </label>
                 <label className="cc-f span2">
                   <span>Description & learning objectives</span>
                   <textarea className="cc-in" rows={3} value={courseForm.description} onChange={(e) => patch({ description: e.target.value })}
