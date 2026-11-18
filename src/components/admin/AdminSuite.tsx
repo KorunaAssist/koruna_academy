@@ -371,6 +371,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       imgBg: '#e0f2fe',
       imageUrl: '',
       trainer: userSession.name || '',
+      creatorId: userSession.id || '',
       attachments: [],
       contentType: 'course',
       requiresCertification: true,

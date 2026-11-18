@@ -77,4 +77,26 @@ export const learningPathService = {
     });
     check(error);
   },
+  async setAssignment(pathId: string,userId: string,dueAt?: string,remove = false) {
+    configured();
+    const { error } = await supabase.rpc('set_learning_path_assignment', {
+      p_path_id:pathId,p_user_id:userId,p_due_at:dueAt || null,p_remove:remove,
+    });
+    check(error);
+  },
+  async moveLearnerToLatestVersion(pathId: string,userId: string) {
+    configured();
+    const { error } = await supabase.rpc('move_learning_path_learner_to_latest_version', { p_path_id:pathId,p_user_id:userId });
+    check(error);
+  },
+  async restoreVersion(versionId: string) {
+    configured();
+    const { error } = await supabase.rpc('restore_learning_path_version', { p_version_id:versionId });
+    check(error);
+  },
+  async deleteArchivedVersion(versionId: string) {
+    configured();
+    const { error } = await supabase.rpc('delete_archived_learning_path_version', { p_version_id:versionId });
+    check(error);
+  },
 };

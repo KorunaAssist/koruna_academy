@@ -26,6 +26,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
     .sort((a,b) => a.name.localeCompare(b.name) || b.version_number-a.version_number);
   const visibleVersions = versions.filter(v => (statusFilter === 'all' || v.status === statusFilter) && `${v.name} ${v.description}`.toLowerCase().includes(pathSearch.toLowerCase()));
   const learnersCount = new Set(data.enrolments.filter(e => versions.some(v => v.id === e.version_id)).map(e => e.user_id)).size;
+  const managedAssignments = assignment ? data.enrolments.filter(enrolment => enrolment.path_id === assignment.path_id && enrolment.source === 'assigned') : [];
   const open = (version: PathVersion | null, source: PathData = data) => {
     const prerequisites: Record<string,string[]> = {};
     for (const edge of source.prerequisites) (prerequisites[edge.course_id] ||= []).push(edge.prerequisite_course_id);
@@ -93,8 +94,15 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
                 open(next.versions.find(v => v.id === id)!,next);
               })}>Create New Version</button>}
             {version.status === 'published' && <>
-              {latestPublished?.id === version.id && <button className="lp-button primary" disabled={busy} onClick={() => { setAssignment(version); setAssignedUsers([]); setDeadline(''); setLearnerSearch(''); setActionError(''); }}>Assign Employees</button>}
+              {latestPublished?.id === version.id && <button className="lp-button primary" disabled={busy} onClick={() => { setAssignment(version); setAssignedUsers([]); setDeadline(''); setLearnerSearch(''); setActionError(''); }}>Manage Assignments</button>}
               <button className="lp-button" disabled={busy} onClick={() => run(async () => { await learningPathService.setStatus(version.id,'archived'); await reload(); setMessage('Version archived. Existing learners retain access.'); })}>Archive</button>
+            </>}
+            {version.status === 'archived' && <>
+              <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.restoreVersion(version.id); await reload(); setMessage(`Version ${version.version_number} restored as published.`); })}>Restore</button>
+              <button className="lp-button danger" disabled={busy} onClick={() => {
+                if (!window.confirm(`Permanently delete Version ${version.version_number}? Its learning-path enrolments will be removed. Course progress will be kept.`)) return;
+                run(async () => { await learningPathService.deleteArchivedVersion(version.id); await reload(); setMessage(`Version ${version.version_number} permanently deleted.`); });
+              }}>Permanently Delete</button>
             </>}
           </div>
           {!!learners.length && <details><summary>Learner progress</summary><div className="lp-stack">{learners.map(e => {
@@ -106,15 +114,21 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
       })}
     </div></>
     {assignment && <div className="lp-overlay"><section className="lp-dialog lp-stack" role="dialog" aria-modal="true" aria-labelledby="lp-assign-title">
-      <div className="lp-toolbar"><h2 id="lp-assign-title">Assign {assignment.name}</h2><button className="lp-icon" aria-label="Close assignment" disabled={busy} onClick={() => setAssignment(null)}><X size={20}/></button></div>
-      <p>Assign the published roadmap to employees. Existing learners keep their current version.</p>
+      <div className="lp-toolbar"><h2 id="lp-assign-title">Manage assignments: {assignment.name}</h2><button className="lp-icon" aria-label="Close assignment" disabled={busy} onClick={() => setAssignment(null)}><X size={20}/></button></div>
+      <p>Assign the published roadmap to employees or remove a managed assignment. Removing an assignment preserves completed course progress.</p>
+      {!!managedAssignments.length && <section className="lpa-managed-assignments"><h3>Currently assigned</h3>{managedAssignments.map(enrolment => {
+        const learner = users.find(user => user.id === enrolment.user_id);
+        return <div className="lp-toolbar" key={enrolment.id}><span>{learner?.name || learner?.email || 'Employee'}<small>{enrolment.due_at ? `Due ${new Date(enrolment.due_at).toLocaleDateString()}` : 'No deadline'}</small></span>
+          <div className="lp-actions">{enrolment.version_id !== assignment.id && <button className="lp-button" disabled={busy} onClick={() => run(async () => { await learningPathService.moveLearnerToLatestVersion(assignment.path_id,enrolment.user_id); await reload(); setMessage(`Moved ${learner?.name || 'the employee'} to Version ${assignment.version_number}.`); })}>Move to Version {assignment.version_number}</button>}
+          <button className="lp-button" disabled={busy} onClick={() => run(async () => { await learningPathService.setAssignment(assignment.path_id,enrolment.user_id,undefined,true); await reload(); setMessage(`Removed the assignment for ${learner?.name || 'the employee'}.`); })}>Remove Assignment</button></div></div>;
+      })}</section>}
       <label className="lp-field">Find employees<input type="search" value={learnerSearch} disabled={busy} onChange={e => setLearnerSearch(e.target.value)}/></label>
-      <div className="lp-picker">{users.filter(u => u.role === 'employee' && u.id && `${u.name} ${u.email}`.toLowerCase().includes(learnerSearch.toLowerCase())).map(u =>
+      <h3>Assign employees</h3><div className="lp-picker">{users.filter(u => u.role === 'employee' && u.id && `${u.name} ${u.email}`.toLowerCase().includes(learnerSearch.toLowerCase())).map(u =>
         <label className="lp-check" key={u.id}><input type="checkbox" disabled={busy} checked={assignedUsers.includes(u.id)} onChange={e => setAssignedUsers(previous => e.target.checked ? [...previous,u.id] : previous.filter(id => id !== u.id))}/><span>{u.name}<small>{u.email}</small></span></label>)}</div>
       <label className="lp-field">Deadline (optional)<input type="date" value={deadline} disabled={busy} onChange={e => setDeadline(e.target.value)}/></label>
       {actionError && <p className="lp-alert" role="alert">{actionError}</p>}
       <button className="lp-button primary" disabled={busy || !assignedUsers.length} onClick={() => run(async () => {
-        const results = await Promise.allSettled(assignedUsers.map(id => learningPathService.enrol(assignment.path_id,id,deadline ? new Date(`${deadline}T23:59:59`).toISOString() : undefined)));
+        const results = await Promise.allSettled(assignedUsers.map(id => learningPathService.setAssignment(assignment.path_id,id,deadline ? new Date(`${deadline}T23:59:59`).toISOString() : undefined)));
         const failed = results.flatMap((r,i) => r.status === 'rejected' ? [assignedUsers[i]] : []);
         await reload();
         if (failed.length) { setAssignedUsers(failed); throw new Error(`${results.length-failed.length} assignments saved; ${failed.length} failed. Retry the remaining employees.`); }

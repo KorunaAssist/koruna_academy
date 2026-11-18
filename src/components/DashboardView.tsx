@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [assignedUserEmails, setAssignedUserEmails] = useState<string[]>([]);
   const getDefaultAssignmentDueDate = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const [assignmentDueDate, setAssignmentDueDate] = useState<string>(() => getDefaultAssignmentDueDate());
-  const [courseForm, setCourseForm] = useState<Omit<Course, 'id' | 'createdBy' | 'rating' | 'lessons'>>({
+  const [courseForm, setCourseForm] = useState<Omit<Course, 'id' | 'createdBy' | 'rating' | 'lessons'> & { creatorId?: string }>({
     title: '',
     category: 'Mortgage',
     code: '',
@@ -171,6 +171,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     imgBg: '#e0f2fe',
     imageUrl: '',
     trainer: userSession.name || '',
+    creatorId: userSession.id || '',
     attachments: [] as { name: string; url: string; size: number }[],
     contentType: 'course' as 'course' | 'document',
     requiresCertification: true,
@@ -679,11 +680,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       });
 
+    // Keep the database owner and the displayed certificate signatory tied to
+    // the same selected account. This avoids a stale trainer form value from
+    // falling back to the staff member who clicked Publish.
+    const existingCourse = editingCourseId ? courses.find(course => course.id === editingCourseId) : undefined;
+    const selectedCreatorId = courseForm.creatorId || existingCourse?.createdBy || userSession.id;
+    const selectedCreator = users.find(user => user.id === selectedCreatorId);
+    const selectedTrainerName = selectedCreator?.name || courseForm.trainer || userSession.name || '';
+
     let saved: Course;
     try {
       saved = await dbService.saveCourse({
         id: editingCourseId || `c-${Date.now()}`,
-        createdBy: editingCourseId ? courses.find(c => c.id === editingCourseId)?.createdBy ?? null : userSession.id,
+        createdBy: selectedCreatorId,
         title: courseForm.title,
         category: courseForm.category,
         rating: editingCourseId ? (courses.find(c => c.id === editingCourseId)?.rating || 4.5) : 4.5,
@@ -692,12 +701,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         description: courseForm.description,
         imgBg: courseForm.imgBg,
         imageUrl: courseForm.imageUrl,
-        // The display trainer is set from the authenticated creator for new
-        // courses.  A form value must not accidentally carry over another
-        // user's name (for example, "Admin Francis").
-        trainer: editingCourseId
-          ? courses.find(c => c.id === editingCourseId)?.trainer || userSession.name || ''
-          : userSession.name || '',
+        trainer: selectedTrainerName,
         lessons: lessonsWithIds,
         quiz: isDocument ? [] : courseQuiz,
         attachments: courseForm.attachments,
@@ -742,6 +746,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       imgBg: '#e0f2fe',
       imageUrl: '',
       trainer: userSession.name || '',
+      creatorId: userSession.id || '',
       attachments: [],
       contentType: 'course',
       requiresCertification: true,
@@ -769,6 +774,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       imgBg: course.imgBg,
       imageUrl: course.imageUrl || '',
       trainer: course.trainer || userSession.name || 'Koruna Academy Trainer',
+      creatorId: course.createdBy || userSession.id || '',
       attachments: course.attachments || [],
       contentType: course.contentType || 'course',
       requiresCertification: course.requiresCertification !== undefined ? course.requiresCertification : true,
@@ -1192,6 +1198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           imgBg: '#e0f2fe',
                           imageUrl: '',
                           trainer: userSession.name || '',
+                          creatorId: userSession.id || '',
                           attachments: [],
                           contentType: 'course',
                           requiresCertification: true,
