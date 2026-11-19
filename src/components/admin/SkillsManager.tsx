@@ -10,6 +10,7 @@ export function SkillsManager() {
   const [busy,setBusy] = useState(false);
   const [editor,setEditor] = useState<{ id?: string; name: string; description: string } | null>(null);
   const [query,setQuery] = useState('');
+  const [statusFilter,setStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
   useEffect(() => {
     let active = true;
     skillsService.catalogue().then(rows => { if (active) setSkills(rows); })
@@ -23,6 +24,10 @@ export function SkillsManager() {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save the skill.'); }
     finally { setBusy(false); }
   };
+  const visibleSkills = skills.filter(skill =>
+    (statusFilter === 'all' || (statusFilter === 'archived' ? skill.archived : !skill.archived)) &&
+    `${skill.name} ${skill.description}`.toLowerCase().includes(query.toLowerCase())
+  );
   return <section className="lp-workspace" aria-label="Skill catalogue management">
     <div className="lp-toolbar"><p>Create the skills that courses and lessons teach. Each linked lesson contributes equally to that skill’s learning progress.</p>
       <button className="lp-button primary" disabled={busy || loading} onClick={() => { setEditor({ name: '',description: '' }); setMessage(''); }}>Create Skill</button></div>
@@ -41,7 +46,8 @@ export function SkillsManager() {
       <div className="lp-actions"><button className="lp-button primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save Skill'}</button><button className="lp-button" type="button" disabled={busy} onClick={() => setEditor(null)}>Cancel</button></div>
     </form>}
     <label className="lp-field lp-search">Find a skill<input type="search" value={query} onChange={e => setQuery(e.target.value)}/></label>
-    <div className="lp-card-grid">{skills.filter(s => `${s.name} ${s.description}`.toLowerCase().includes(query.toLowerCase())).map(skill => <article className="lp-panel lp-stack" key={skill.id}>
+    <div className="lp-tabs" aria-label="Filter skills by status">{([['all','All Skills'],['active','Active'],['archived','Archived']] as const).map(([status,label]) => <button key={status} className={statusFilter === status ? 'active' : ''} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{label}<span>{status === 'all' ? skills.length : skills.filter(skill => status === 'archived' ? skill.archived : !skill.archived).length}</span></button>)}</div>
+    <div className="lp-card-grid">{visibleSkills.map(skill => <article className="lp-panel lp-stack" key={skill.id}>
       <span className={`lp-badge ${skill.archived ? 'archived' : 'published'}`}>{skill.archived ? 'Archived' : 'Active'}</span>
       <h2>{skill.name}</h2><p className="lp-muted">{skill.description || 'No description yet.'}</p>
       <div className="lp-actions"><button className="lp-button" disabled={busy} onClick={() => { setEditor({ id: skill.id,name: skill.name,description: skill.description }); setMessage(''); }}>Edit</button>
@@ -51,5 +57,6 @@ export function SkillsManager() {
         })}>{skill.archived ? 'Restore' : 'Archive'}</button></div>
     </article>)}</div>
     {!loading && !error && !skills.length && <p className="lp-empty">No skills yet. Create Servicing, Loan Processing, or another skill to get started.</p>}
+    {!loading && !error && !!skills.length && !visibleSkills.length && <p className="lp-empty">No skills match this filter or search.</p>}
   </section>;
 }

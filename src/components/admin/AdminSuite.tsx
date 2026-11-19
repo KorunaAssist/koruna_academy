@@ -439,7 +439,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
     <div className="as-root">
       <AdminSuiteStyles />
 
-      {meta && activeInnerTab !== 'creator' && activeInnerTab !== 'overview' && (
+      {meta && !['creator','overview','learning_paths','career_paths'].includes(activeInnerTab) && (
         <div className="as-header">
           <div>
             <h1 className="as-title">{meta.title}</h1>

@@ -16,6 +16,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
   const [message,setMessage] = useState('');
   const [actionError,setActionError] = useState('');
   const [assignment,setAssignment] = useState<PathVersion | null>(null);
+  const [deleteCandidate,setDeleteCandidate] = useState<PathVersion | null>(null);
   const [assignedUsers,setAssignedUsers] = useState<string[]>([]);
   const [deadline,setDeadline] = useState('');
   const [learnerSearch,setLearnerSearch] = useState('');
@@ -82,6 +83,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
       {!loading && !error && versions.length > 0 && !visibleVersions.length && <div className="lp-empty"><Search size={28}/><h3>No matching learning paths</h3><p>Try a different name or status.</p><button className="lp-button" onClick={() => { setPathSearch(''); setStatusFilter('all'); }}>Reset filters</button></div>}
       {visibleVersions.map(version => {
         const learners = data.enrolments.filter(e => e.version_id === version.id);
+        const roadmapCourses = data.courses.filter(course => course.version_id === version.id).sort((a,b) => a.position-b.position);
         const latestPublished = data.versions.filter(v => v.path_id === version.path_id && v.status === 'published').sort((a,b) => b.version_number-a.version_number)[0];
         return <article className="lp-panel lp-stack lpa-path-card" key={version.id}>
           <div className="lp-toolbar"><span className="lpa-path-icon"><Route size={22}/></span><span className={`lp-badge ${version.status}`}>{version.status}</span></div>
@@ -99,13 +101,13 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
             </>}
             {version.status === 'archived' && <>
               <button className="lp-button primary" disabled={busy} onClick={() => run(async () => { await learningPathService.restoreVersion(version.id); await reload(); setMessage(`Version ${version.version_number} restored as published.`); })}>Restore</button>
-              <button className="lp-button danger" disabled={busy} onClick={() => {
-                if (!window.confirm(`Permanently delete Version ${version.version_number}? Its learning-path enrolments will be removed. Course progress will be kept.`)) return;
-                run(async () => { await learningPathService.deleteArchivedVersion(version.id); await reload(); setMessage(`Version ${version.version_number} permanently deleted.`); });
-              }}>Permanently Delete</button>
+              <button className="lp-button danger" disabled={busy} onClick={() => setDeleteCandidate(version)}>Permanently Delete</button>
             </>}
           </div>
-          {!!learners.length && <details><summary>Learner progress</summary><div className="lp-stack">{learners.map(e => {
+          {!!learners.length && <details><summary>Learner progress</summary><div className="lp-stack"><section className="lpa-roadmap-courses"><h3>Courses in this learning path</h3><ol>{roadmapCourses.map(course => {
+            const courseDetails = courses.find(item => item.id === course.course_id);
+            return <li key={course.course_id}><span>{courseDetails?.title || course.course_id}</span>{!course.required && <small>Optional</small>}</li>;
+          })}</ol></section><h3 className="lpa-learner-progress-title">Learners</h3>{learners.map(e => {
             const learner = users.find(u => u.id === e.user_id);
             const progress = data.progress.find(p => p.enrolment_id === e.id);
             return <div className="lp-toolbar" key={e.id}><span>{learner?.name || learner?.email || 'Learner'}<small>{e.source}{e.due_at ? ` · Due ${new Date(e.due_at).toLocaleDateString()}` : ''}</small></span><strong>{progress?.progress_percent || 0}%</strong></div>;
@@ -134,6 +136,12 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
         if (failed.length) { setAssignedUsers(failed); throw new Error(`${results.length-failed.length} assignments saved; ${failed.length} failed. Retry the remaining employees.`); }
         setAssignment(null); setMessage(`Roadmap assigned to ${results.length} employees.`);
       })}>{busy ? 'Assigning…' : `Assign ${assignedUsers.length} Employees`}</button>
+    </section></div>}
+    {deleteCandidate && <div className="lp-overlay"><section className="lp-dialog lp-stack" role="dialog" aria-modal="true" aria-labelledby="lp-delete-title">
+      <div className="lp-toolbar"><h2 id="lp-delete-title">Permanently delete Version {deleteCandidate.version_number}?</h2><button className="lp-icon" aria-label="Close delete confirmation" disabled={busy} onClick={() => setDeleteCandidate(null)}><X size={20}/></button></div>
+      <p>This removes this archived roadmap version and its Learning Path enrolments. Employees’ completed course progress and certificates will be kept. This cannot be undone.</p>
+      <div className="lp-actions"><button className="lp-button" disabled={busy} onClick={() => setDeleteCandidate(null)}>Cancel</button><button className="lp-button danger" disabled={busy} onClick={() => run(async () => { const version = deleteCandidate; await learningPathService.deleteArchivedVersion(version.id); await reload(); setDeleteCandidate(null); setMessage(`Version ${version.version_number} permanently deleted.`); })}>{busy ? 'Deleting…' : 'Permanently Delete'}</button></div>
+      {actionError && <p className="lp-alert" role="alert">{actionError}</p>}
     </section></div>}
   </section>;
 }
