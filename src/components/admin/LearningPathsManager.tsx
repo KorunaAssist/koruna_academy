@@ -82,6 +82,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
       {!loading && !error && versions.length > 0 && !visibleVersions.length && <div className="lp-empty"><Search size={28}/><h3>No matching learning paths</h3><p>Try a different name or status.</p><button className="lp-button" onClick={() => { setPathSearch(''); setStatusFilter('all'); }}>Reset filters</button></div>}
       {visibleVersions.map(version => {
         const learners = data.enrolments.filter(e => e.version_id === version.id);
+        const roadmapCourses = data.courses.filter(course => course.version_id === version.id).sort((a,b) => a.position-b.position);
         const latestPublished = data.versions.filter(v => v.path_id === version.path_id && v.status === 'published').sort((a,b) => b.version_number-a.version_number)[0];
         return <article className="lp-panel lp-stack lpa-path-card" key={version.id}>
           <div className="lp-toolbar"><span className="lpa-path-icon"><Route size={22}/></span><span className={`lp-badge ${version.status}`}>{version.status}</span></div>
@@ -105,7 +106,10 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
               }}>Permanently Delete</button>
             </>}
           </div>
-          {!!learners.length && <details><summary>Learner progress</summary><div className="lp-stack">{learners.map(e => {
+          {!!learners.length && <details><summary>Learner progress</summary><div className="lp-stack"><section className="lpa-roadmap-courses"><h3>Courses in this learning path</h3><ol>{roadmapCourses.map(course => {
+            const courseDetails = courses.find(item => item.id === course.course_id);
+            return <li key={course.course_id}><span>{courseDetails?.title || course.course_id}</span>{!course.required && <small>Optional</small>}</li>;
+          })}</ol></section><h3 className="lpa-learner-progress-title">Learners</h3>{learners.map(e => {
             const learner = users.find(u => u.id === e.user_id);
             const progress = data.progress.find(p => p.enrolment_id === e.id);
             return <div className="lp-toolbar" key={e.id}><span>{learner?.name || learner?.email || 'Learner'}<small>{e.source}{e.due_at ? ` · Due ${new Date(e.due_at).toLocaleDateString()}` : ''}</small></span><strong>{progress?.progress_percent || 0}%</strong></div>;
