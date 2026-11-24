@@ -510,7 +510,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
           coursesOnly={coursesOnly}
           categories={categories}
           handleStartEditCourse={(course) => { setCreatorInitialTab('details'); handleStartEditCourse(course); }}
-          onViewFeedback={(course) => { setCreatorInitialTab('review'); handleStartEditCourse(course); setActiveInnerTab('creator'); }}
+          onViewFeedback={() => setActiveInnerTab('feedback_reports')}
           setActiveInnerTab={setActiveInnerTab}
           setCourseToDelete={setCourseToDelete}
         />
