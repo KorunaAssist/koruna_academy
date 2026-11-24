@@ -7,6 +7,10 @@ import { courseSurveyService, type CourseSurvey, type CourseSurveyResults } from
 import { CourseBannerHeader } from '../courses/CourseCard';
 
 type CourseFeedback = { course:Course; survey:CourseSurvey; result:CourseSurveyResults };
+const ratingLabel = (value: number | string | null) => {
+  const rating = Math.round(Number(value));
+  return ({ 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very good', 5: 'Excellent' } as Record<number,string>)[rating] || 'Not rated';
+};
 
 export function FeedbackReportsView({ userSession, courses }: { userSession:UserSessionData; courses:Course[] }) {
   const [items,setItems] = useState<CourseFeedback[]>([]);
@@ -34,8 +38,8 @@ export function FeedbackReportsView({ userSession, courses }: { userSession:User
     {!selected.result.responses && <div className="as-empty"><MessageSquareText size={32}/><h3>No feedback yet</h3><p>Employees will appear here after completing the course and submitting its survey.</p></div>}
     {selected.result.questions.map(question => <article className="as-card" key={question.id} style={{ display: 'grid', gap: '1rem', padding: '1.25rem' }}>
       <div style={{ display: 'grid', gap: '0.55rem' }}><span style={{ width: 'fit-content', padding: '0.3rem 0.6rem', borderRadius: '999px', background: '#f3e8ff', color: '#6d28d9', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{question.kind === 'rating' ? 'Rating scale · 1–5' : question.kind === 'choice' ? 'Multiple choice' : 'Written feedback'}</span><h2 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.45, color: '#1e293b' }}>{question.question}</h2></div>
-      {question.kind === 'rating' && <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem', padding: '0.85rem 1rem', borderRadius: '10px', background: '#faf5ff' }}><strong style={{ fontSize: '1.8rem', color: '#6d28d9' }}>{question.average ?? '—'}</strong><span className="as-cell-sub">average out of 5 · {question.responses} response{question.responses === 1 ? '' : 's'}</span></div>}
-      <div style={{ display: 'grid', gap: '0.7rem' }}>{question.answers.length ? question.answers.map((answer,index) => <div key={index} style={{ border: '1px solid #e9d5ff', borderLeft: '4px solid #8b5cf6', padding: '0.75rem 0.9rem', background: '#faf5ff', borderRadius: '9px' }}><p style={{ margin: 0, color: '#334155', fontWeight: question.kind === 'text' ? 400 : 700 }}>{question.kind === 'text' ? `“${answer.value}”` : answer.value}</p><small className="as-cell-sub" style={{ display: 'block', marginTop: '0.3rem' }}>{answer.respondent || 'Anonymous'}</small></div>) : <p className="as-cell-sub" style={{ margin: 0 }}>No responses yet.</p>}</div>
+      {question.kind === 'rating' && <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem', padding: '0.85rem 1rem', borderRadius: '10px', background: '#faf5ff' }}><strong style={{ fontSize: '1.8rem', color: '#6d28d9' }}>{question.average ?? '—'}</strong><span className="as-cell-sub"><b style={{ color: '#6d28d9' }}>{ratingLabel(question.average)}</b> · average out of 5 · {question.responses} response{question.responses === 1 ? '' : 's'}</span></div>}
+      <div style={{ display: 'grid', gap: '0.7rem' }}>{question.answers.length ? question.answers.map((answer,index) => <div key={index} style={{ border: '1px solid #e9d5ff', borderLeft: '4px solid #8b5cf6', padding: '0.75rem 0.9rem', background: '#faf5ff', borderRadius: '9px' }}><p style={{ margin: 0, color: '#334155', fontWeight: question.kind === 'text' ? 400 : 700 }}>{question.kind === 'text' ? `“${answer.value}”` : question.kind === 'rating' ? `${answer.value} — ${ratingLabel(answer.value)}` : answer.value}</p><small className="as-cell-sub" style={{ display: 'block', marginTop: '0.3rem' }}>{answer.respondent || 'Anonymous'}</small></div>) : <p className="as-cell-sub" style={{ margin: 0 }}>No responses yet.</p>}</div>
     </article>)}
   </section>;
 
