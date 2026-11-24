@@ -10,6 +10,7 @@ import {
   Shield,
   Settings,
   BarChart3,
+  MessageSquareText,
   Route,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ interface AdminNavItem {
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'quiz_scores', label: 'Employee Quiz Scores', icon: FileText },
+  { id: 'feedback_reports', label: 'Feedback Reports', icon: MessageSquareText },
   { id: 'team_reports', label: 'Team Reports', icon: BarChart3 },
   { id: 'teams', label: 'Manage Teams', icon: Users },
   { id: 'creator', label: 'Course Creator', icon: PlusCircle },
@@ -53,7 +55,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
 ];
 
 const NAV_GROUPS = [
-  { id: 'insights', label: 'Overview & reports', items: ['overview', 'quiz_scores', 'team_reports', 'view_reports'] },
+  { id: 'insights', label: 'Overview & reports', items: ['overview', 'quiz_scores', 'feedback_reports', 'team_reports', 'view_reports', 'view_feedback'] },
   { id: 'learning', label: 'Learning & content', items: ['creator', 'create_courses', 'inventory', 'learning_paths', 'career_paths', 'skill_catalogue', 'document_inventory', 'certificate_templates', 'create_certificates'] },
   { id: 'people', label: 'People & assignments', items: ['teams', 'assignments', 'users'] },
   { id: 'administration', label: 'Administration', items: ['permissions', 'settings'] },
@@ -65,6 +67,7 @@ const TRAINER_NAV_ITEMS: AdminNavItem[] = [
   { id: 'create_courses', label: 'Create courses', icon: PlusCircle, targetTab: 'creator' },
   { id: 'create_certificates', label: 'Create certificates', icon: Award, targetTab: 'certificate_templates' },
   { id: 'view_reports', label: 'Team Reports', icon: BarChart3, targetTab: 'team_reports' },
+  { id: 'view_feedback', label: 'Feedback Reports', icon: MessageSquareText, targetTab: 'feedback_reports' },
 ];
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({

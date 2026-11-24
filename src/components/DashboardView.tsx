@@ -33,6 +33,7 @@ import { can, canManageCourse, safeTab } from '../services/authorization';
 import { learningPathService } from '../services/learningPaths';
 import { isCourseAssigned } from '../services/courseAccess';
 import { missingPrerequisites } from '../services/learningPathRules';
+import { courseSurveyService,type CourseSurvey } from '../services/courseSurveys';
 
 interface DashboardViewProps {
   userSession: UserSessionData;
@@ -94,6 +95,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoadingAcademy, setIsLoadingAcademy] = useState(false);
   const [completedCourseModal, setCompletedCourseModal] = useState<{ title: string } | null>(null);
+  const [pendingSurvey,setPendingSurvey] = useState<{ course: Course; survey: CourseSurvey; required: boolean } | null>(null);
+  const [surveyAnswers,setSurveyAnswers] = useState<Record<string,string | number>>({});
+  const [surveyError,setSurveyError] = useState('');
+  const [submittingSurvey,setSubmittingSurvey] = useState(false);
+  const [submitSurveyAnonymously,setSubmitSurveyAnonymously] = useState(false);
+  const [certificateAfterSurvey,setCertificateAfterSurvey] = useState<{ course: Course; date: string; id: string } | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -514,12 +521,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
         await dbService.saveUserProgress(prog);
         await loadPlatformData();
+        if (c) {
+          const status = await courseSurveyService.status(c.id);
+          if (status.enabled && !status.submitted) {
+            const survey = await courseSurveyService.load(c.id);
+            setSurveyAnswers({}); setSurveyError(''); setSubmitSurveyAnonymously(false); setPendingSurvey({ course:c,survey,required:status.required_for_certificate });
+            return;
+          }
+        }
         setCompletedCourseModal({ title: c?.title || 'Course' });
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Unable to complete course. Please check your progress and try again.');
       throw err;
     }
+  };
+
+  const submitPendingSurvey = async () => {
+    if (!pendingSurvey) return;
+    setSubmittingSurvey(true); setSurveyError('');
+    try {
+      await courseSurveyService.submit(pendingSurvey.course.id,surveyAnswers,submitSurveyAnonymously);
+      const title = pendingSurvey.course.title;
+      setPendingSurvey(null);
+      if (certificateAfterSurvey) { setViewingCertificate(certificateAfterSurvey); setCertificateAfterSurvey(null); }
+      else setCompletedCourseModal({ title });
+    } catch (error) { setSurveyError(error instanceof Error ? error.message : 'Unable to submit feedback.'); }
+    finally { setSubmittingSurvey(false); }
+  };
+
+  const openCertificate = async (course: Course) => {
+    const cert = getCertData(course.id);
+    try {
+      const status = await courseSurveyService.status(course.id);
+      if (status.enabled && status.required_for_certificate && !status.submitted) {
+        const survey = await courseSurveyService.load(course.id);
+        setSurveyAnswers({}); setSurveyError(''); setSubmitSurveyAnonymously(false); setCertificateAfterSurvey({ course,date:cert.date,id:cert.id });
+        setPendingSurvey({ course,survey,required:true });
+        return;
+      }
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to check certificate feedback requirements.'); return; }
+    setViewingCertificate({ course,date:cert.date,id:cert.id });
   };
 
   const handleQuizAnswer = (questionIdx: number, optionIdx: number) => {
@@ -646,7 +688,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // TRAINER EVENTS
   // ==========================================
 
-  const handleSaveCourse = async (e: React.FormEvent) => {
+  const handleSaveCourse = async (e: React.FormEvent, survey?: CourseSurvey) => {
     e.preventDefault();
     if (!can(userSession.role, 'editCourses') || (editingCourseId && !canManageCourse(userSession.role, userSession.id, courses.find(c => c.id === editingCourseId)?.createdBy))) {
       showToast('You do not have permission to edit this course.');
@@ -712,6 +754,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         skillIds: isDocument ? [] : courseForm.skillIds || []
       });
 
+      if (survey) await courseSurveyService.save(saved.id,survey);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to save the course.'); return; }
 
     // Process assignments
@@ -927,6 +970,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div style={{ position: 'fixed', top: '20px', right: '20px', background: 'var(--koruna-dark-bg)', color: '#ffffff', borderLeft: '4px solid var(--koruna-primary)', padding: '1rem 1.5rem', borderRadius: '8px', zIndex: 10000, display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: 'var(--shadow-lg)', fontWeight: 600, animation: 'fadeIn 0.2s ease' }}>
           <CheckCircle size={18} style={{ color: 'var(--koruna-primary)' }} />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {pendingSurvey && (
+        <div className="koruna-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="course-survey-title">
+          <div className="koruna-modal-content" style={{ maxWidth: '620px', padding: '2rem', borderRadius: '16px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 id="course-survey-title" style={{ marginTop: 0 }}>Course feedback</h2>
+            <p style={{ color: '#475569' }}>You completed <strong>{pendingSurvey.course.title}</strong>. Your feedback helps improve KA Acad.</p>
+            <div style={{ display: 'grid', gap: '1rem', marginTop: '1.25rem' }}>{pendingSurvey.survey.questions.map((question,index) => <label key={question.id} style={{ display: 'grid', gap: '0.45rem', fontWeight: 650 }}><span>{index+1}. {question.question}{question.required ? ' *' : ''}</span>{question.kind === 'rating' ? <select value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:Number(event.target.value) }))}><option value="">Choose a rating</option>{Array.from({length:10},(_,value) => <option key={value+1} value={value+1}>{value+1}</option>)}</select> : question.kind === 'choice' ? <select value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))}><option value="">Choose an answer</option>{question.options.map(option => <option key={option} value={option}>{option}</option>)}</select> : <textarea rows={3} value={String(surveyAnswers[question.id] ?? '')} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))} placeholder="Share your feedback" />}</label>)}</div>
+            <label style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', marginTop: '1rem', color: '#475569' }}><input type="checkbox" checked={submitSurveyAnonymously} onChange={event => setSubmitSurveyAnonymously(event.target.checked)}/> Submit this feedback anonymously</label>
+            {surveyError && <p role="alert" style={{ color: '#b42318' }}>{surveyError}</p>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>{!pendingSurvey.required && <button type="button" className="btn-koruna-outline" disabled={submittingSurvey} onClick={() => { const title=pendingSurvey.course.title; setPendingSurvey(null); setCompletedCourseModal({ title }); }}>Skip for now</button>}<button type="button" className="btn-koruna-solid" disabled={submittingSurvey} onClick={() => void submitPendingSurvey()}>{submittingSurvey ? 'Submitting…' : 'Submit feedback'}</button></div>
+          </div>
         </div>
       )}
 
@@ -1317,10 +1373,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 isAssigned={isAssignedToCurrentUser}
                 onStudy={handleStartStudy}
                 onBrowse={() => handleTabChange('catalog_courses')}
-                onCertificate={(course) => {
-                  const cert = getCertData(course.id);
-                  setViewingCertificate({ course, date: cert.date, id: cert.id });
-                }}
+                onCertificate={(course) => { void openCertificate(course); }}
               />
             )}
             {/* TAB 5: MY CERTIFICATES */}
@@ -1331,10 +1384,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 learnerName={userSession.name}
                 getIssueDate={(course) => getCertData(course.id).date}
                 onBrowse={() => handleTabChange('catalog_courses')}
-                onView={(course) => {
-                  const cert = getCertData(course.id);
-                  setViewingCertificate({ course, date: cert.date, id: cert.id });
-                }}
+                onView={(course) => { void openCertificate(course); }}
               />
             )}
 
