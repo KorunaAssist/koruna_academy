@@ -2,7 +2,7 @@ import { useEffect,useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import type { UserSessionData } from '../../services/auth';
 import type { Course,UserProgress } from '../../services/db';
-import { careerPathService,loadCareerWorkspace,type CareerWorkspace } from '../../services/careerPaths';
+import { careerPathService,loadCareerSupportingData,loadCareerWorkspace,type CareerWorkspace } from '../../services/careerPaths';
 import '../courses/learningPaths.css';
 import './careerPaths.css';
 
@@ -22,7 +22,14 @@ export function CareerPathView({userSession,courses,userProgress,assignedCourseI
   useEffect(() => {
     let active=true;
     setLoading(true);
-    loadCareerWorkspace().then(value => {if (active) {setData(value);setError('');}})
+    loadCareerWorkspace().then(value => {
+      if (!active) return;
+      setData(value);setError('');setLoading(false);
+      // Skill and roadmap details enrich the already-visible career path.
+      void loadCareerSupportingData().then(support => {
+        if (active) setData(current => current ? {...current,...support} : current);
+      });
+    })
       .catch(reason => {if (active) setError(reason instanceof Error ? reason.message : 'Unable to load career paths.');})
       .finally(() => {if (active) setLoading(false);});
     return () => {active=false;};
