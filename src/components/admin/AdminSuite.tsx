@@ -285,7 +285,6 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   teams: { title: 'Manage Teams', description: 'Assign employees to team leaders for reporting and training supervision.' },
   role_skills: { title: 'Skills by Role', description: 'Manage the skills employees need for each job role.' },
   skill_catalogue: { title: 'Skills Catalogue', description: 'Define the skills that employees develop through courses and lessons.' },
-  feedback_reports: { title: 'Feedback Reports', description: 'Review course completion survey results and employee feedback.' },
   users: { title: 'Users', description: 'Manage accounts, roles, and departments.' },
   permissions: { title: 'Permissions', description: 'Choose what each role is allowed to do.' },
   settings: { title: 'Settings', description: 'Platform-wide options and reminders.' }
