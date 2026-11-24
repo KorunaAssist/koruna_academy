@@ -295,6 +295,7 @@ interface CourseCardProps {
   applicationId?: number | null;
   onActionClick?: () => void;
   onEditClick?: () => void;
+  onFeedbackClick?: () => void;
   onDeleteClick?: () => void;
   isEnrolled?: boolean;
   isAssigned?: boolean;
@@ -310,6 +311,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   applicationId = null,
   onActionClick,
   onEditClick,
+  onFeedbackClick,
   onDeleteClick,
   actionDisabled = false
 }) => {
@@ -444,7 +446,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               </>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '0.65rem', marginTop: 'auto' }}>
+          <div style={{ display: 'flex', gap: '0.65rem', marginTop: 'auto', flexWrap: 'wrap' }}>
             <button
               type="button"
               style={{
@@ -463,6 +465,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             >
               Edit
             </button>
+            {!isDoc && onFeedbackClick && (
+              <button
+                type="button"
+                style={{ flex: 1, height: '36px', border: '1px solid #c4b5fd', borderRadius: '8px', background: '#faf5ff', color: '#6d28d9', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                onClick={onFeedbackClick}
+              >
+                View feedback
+              </button>
+            )}
             <button
               type="button"
               style={{

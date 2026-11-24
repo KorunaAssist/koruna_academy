@@ -2,18 +2,20 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen, Zap, FileText, CloudUpload, Trash2, RefreshCw, Layers, Plus, Award,
   CheckCircle2, Users, Check, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Play,
-  Eye, Search, AlertCircle, X, HelpCircle, Image as ImageIcon, Paperclip, ListChecks, Settings2
+  Eye, Search, AlertCircle, X, HelpCircle, Image as ImageIcon, Paperclip, ListChecks, Settings2, SlidersHorizontal
 } from 'lucide-react';
 import type { Course, DatabaseUser, Lesson, QuizQuestion } from '../../services/db';
 import type { UserSessionData } from '../../services/auth';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { CourseCard, CourseBannerHeader } from '../courses/CourseCard';
 import { skillsService,type Skill } from '../../services/skills';
+import { courseSurveyService,type CourseSurvey,type SurveyQuestion } from '../../services/courseSurveys';
 import { LoadingModal } from '../LoadingModal';
 
 export interface ContentCreatorViewProps {
   userSession?: UserSessionData;
   editingCourseId: string | null;
+  initialTab?: TabId;
   courses: Course[];
   users: DatabaseUser[];
   assignedUserEmails: string[];
@@ -44,7 +46,7 @@ export interface ContentCreatorViewProps {
   setCourseQuiz: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
   courseModules: { id: string; title: string }[];
   setCourseModules: React.Dispatch<React.SetStateAction<{ id: string; title: string }[]>>;
-  handleSaveCourse: (e: React.FormEvent) => Promise<void>;
+  handleSaveCourse: (e: React.FormEvent, survey?: CourseSurvey) => Promise<void>;
   resetCourseFormState: () => void;
   onOpenInventoryModal: () => void;
   addQuizQuestionField: () => void;
@@ -110,13 +112,14 @@ const getEmbedUrl = (url: string) => {
 };
 
 export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
-  userSession, editingCourseId, courses, users, assignedUserEmails, setAssignedUserEmails,
+  userSession, editingCourseId, initialTab = 'details', courses, users, assignedUserEmails, setAssignedUserEmails,
   assignmentDueDate, setAssignmentDueDate,
   courseForm, setCourseForm, courseLessons, setCourseLessons, courseQuiz, setCourseQuiz,
   courseModules, setCourseModules, handleSaveCourse, resetCourseFormState, onOpenInventoryModal,
   addQuizQuestionField, removeQuizQuestionField, showToast
 }) => {
   const [tab, setTab] = useState<TabId>('details');
+  useEffect(() => { setTab(initialTab); }, [editingCourseId, initialTab]);
   const [isUploading, setIsUploading] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -150,7 +153,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
     setConfirmPublish(false);
     setIsSaving(true);
     try {
-      await handleSaveCourse(event);
+      await handleSaveCourse(event,survey);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to finish saving the course. Please review and try again.');
     } finally {
@@ -161,13 +164,16 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [isCardImageUploading, setIsCardImageUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('All');
+  const [deptFilters, setDeptFilters] = useState<string[]>([]);
+  const [roleFilters, setRoleFilters] = useState<string[]>([]);
+  const [showAssignmentFilters,setShowAssignmentFilters] = useState(false);
   const [assignTab, setAssignTab] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [expanded, setExpanded] = useState<Record<number, boolean>>({ 0: true });
   const [videoModal, setVideoModal] = useState<string | null>(null);
   const [docPreview, setDocPreview] = useState(false);
   const [quizTest, setQuizTest] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [survey,setSurvey] = useState<CourseSurvey>({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] });
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
   const [skillSearch,setSkillSearch] = useState('');
@@ -183,6 +189,13 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
       .finally(() => { if (active) setSkillsLoading(false); });
     return () => { active = false; };
   },[userSession?.id,skillsRetry]);
+  useEffect(() => {
+    let active = true;
+    if (!editingCourseId) { setSurvey({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] }); return; }
+    courseSurveyService.load(editingCourseId).then(value => { if (active) setSurvey(value); })
+      .catch(reason => { if (active) showToast(reason instanceof Error ? reason.message : 'Unable to load the course survey.'); });
+    return () => { active = false; };
+  },[editingCourseId]);
 
   const isDocument = courseForm.contentType === 'document';
   const canReassignCreator = userSession?.role === 'admin';
@@ -367,14 +380,16 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
     const q = employeeSearch.toLowerCase();
     return employees.filter((e) => {
       const match = e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) || (e.department || '').toLowerCase().includes(q);
-      const dept = deptFilter === 'All' || e.department === deptFilter;
+      const dept = !deptFilters.length || deptFilters.includes(e.department || '');
+      const role = !roleFilters.length || roleFilters.includes(e.role);
       const on = assignedUserEmails.includes(e.email);
-      return match && dept && (assignTab === 'all' || (assignTab === 'assigned' ? on : !on));
+      return match && dept && role && (assignTab === 'all' || (assignTab === 'assigned' ? on : !on));
     });
-  }, [employees, employeeSearch, deptFilter, assignTab, assignedUserEmails]);
+  }, [employees, employeeSearch, deptFilters, roleFilters, assignTab, assignedUserEmails]);
 
   const selectFiltered = () => { const em = filtered.map((e) => e.email); setAssignedUserEmails((p) => Array.from(new Set([...p, ...em]))); };
   const clearFiltered = () => { const em = new Set(filtered.map((e) => e.email)); setAssignedUserEmails((p) => p.filter((e) => !em.has(e))); };
+  const allShownSelected = filtered.length > 0 && filtered.every(employee => assignedUserEmails.includes(employee.email));
 
   const previewCourse: Course = useMemo(() => ({
     id: editingCourseId || 'preview-id',
@@ -906,8 +921,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                   ))}
                 </div>
                 <div className="cc-row">
-                  <button type="button" className="cc-btn sm" disabled={!filtered.length} onClick={selectFiltered}><Check size={14}/> Select all shown</button>
-                  <button type="button" className="cc-btn sm ghost" disabled={!filtered.some(emp => assignedUserEmails.includes(emp.email))} onClick={clearFiltered}>Clear shown</button>
+                  <button type="button" className="cc-btn sm" disabled={!filtered.length} onClick={allShownSelected ? clearFiltered : selectFiltered}><Check size={14}/> {allShownSelected ? 'Deselect all shown' : 'Select all shown'}</button>
                 </div>
               </div>
 
@@ -929,11 +943,15 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                   <input className="cc-in" aria-label="Search accounts" placeholder="Search name, email, or department" value={employeeSearch} onChange={(e) => setEmployeeSearch(e.target.value)} />
                   {employeeSearch && <button type="button" aria-label="Clear account search" onClick={() => setEmployeeSearch('')}><X size={13} /></button>}
                 </div>
-                <select className="cc-in cc-w-dept" aria-label="Filter by department" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-                  <option value="All">All departments</option>
-                  {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                <button type="button" className="cc-btn cc-filter-trigger" onClick={() => setShowAssignmentFilters(true)}><SlidersHorizontal size={15}/> Filter accounts{deptFilters.length + roleFilters.length > 0 && <span>{deptFilters.length + roleFilters.length}</span>}</button>
               </div>
+
+              {showAssignmentFilters && <div className="cc-filter-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-filter-title" onClick={() => setShowAssignmentFilters(false)}><div className="cc-filter-modal-box" onClick={event => event.stopPropagation()}>
+                <div className="cc-filter-modal-head"><div><h3 id="assignment-filter-title">Filter accounts</h3><p>Choose one or more roles and departments to show.</p></div><button type="button" className="cc-btn sm ghost" aria-label="Close filters" onClick={() => setShowAssignmentFilters(false)}><X size={16}/></button></div>
+                <div className="cc-filter-group"><strong>Role</strong><div className="cc-filter-chips">{([['employee','Employee'],['team_leader','Team Leader'],['trainer','Trainer'],['admin','Admin']] as const).map(([value,label]) => <button type="button" key={value} className={roleFilters.includes(value) ? 'selected' : ''} aria-pressed={roleFilters.includes(value)} onClick={() => setRoleFilters(current => current.includes(value) ? current.filter(item => item !== value) : [...current,value])}>{label}</button>)}</div></div>
+                <div className="cc-filter-group"><strong>Department</strong><div className="cc-filter-chips">{departments.map(department => <button type="button" key={department} className={deptFilters.includes(department) ? 'selected' : ''} aria-pressed={deptFilters.includes(department)} onClick={() => setDeptFilters(current => current.includes(department) ? current.filter(item => item !== department) : [...current,department])}>{department}</button>)}{!departments.length && <p className="cc-muted">No departments are available.</p>}</div></div>
+                <div className="cc-filter-modal-actions"><button type="button" className="cc-btn ghost" onClick={() => { setDeptFilters([]); setRoleFilters([]); }}>Clear filters</button><button type="button" className="cc-btn primary" onClick={() => setShowAssignmentFilters(false)}>Show accounts</button></div>
+              </div></div>}
 
               <div className="cc-assign-list-label"><span>Accounts</span><span aria-live="polite">{filtered.length} shown</span></div>
               <div className="cc-people">
@@ -944,7 +962,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                       <input type="checkbox" checked={on}
                         onChange={(e) => setAssignedUserEmails((p) => (e.target.checked ? [...p, emp.email] : p.filter((x) => x !== emp.email)))} />
                       <span className="cc-av" style={{ background: avatarColor(emp.name) }}>{getInitials(emp.name)}</span>
-                      <div><strong title={emp.name}>{emp.name}</strong><span title={emp.email}>{emp.email}</span>{emp.department && <small>{emp.department}</small>}</div>
+                      <div><strong title={emp.name}>{emp.name}</strong><span title={emp.email}>{emp.email}</span><small>{[emp.department,emp.role === 'team_leader' ? 'Team Leader' : emp.role?.replace('_',' ')].filter(Boolean).join(' · ')}</small></div>
                     </label>
                   );
                 })}
@@ -952,7 +970,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                   <div className="cc-empty-box">
                     <Users size={20} />
                     <span>No accounts match these filters.</span>
-                    <button type="button" className="cc-btn sm" onClick={() => { setEmployeeSearch(''); setDeptFilter('All'); setAssignTab('all'); }}>Reset filters</button>
+                    <button type="button" className="cc-btn sm" onClick={() => { setEmployeeSearch(''); setDeptFilters([]); setRoleFilters([]); setAssignTab('all'); }}>Reset filters</button>
                   </div>
                 )}
               </div>
@@ -993,6 +1011,16 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                 </div>
               </div>
             </section>
+
+              {!isDocument && <section className="cc-card cc-review-card">
+                <div className="cc-card-h between"><span><ListChecks size={15}/> Completion feedback survey</span><label className="cc-check"><input type="checkbox" checked={survey.enabled} onChange={event => setSurvey(current => ({ ...current,enabled:event.target.checked }))}/> Enable</label></div>
+                {survey.enabled && <div className="cc-stack" style={{ gap: '0.7rem' }}>
+                  <label className="cc-check"><input type="checkbox" checked={survey.requiredForCertificate} onChange={event => setSurvey(current => ({ ...current,requiredForCertificate:event.target.checked }))}/> Require before showing certificate</label>
+                  <p className="cc-muted">Employees choose whether each feedback response is anonymous.</p>
+                  {survey.questions.map(question => <div className="cc-lesson-row" key={question.id}><input className="cc-in" value={question.question} placeholder="Survey question" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,question:event.target.value}:item) }))}/><select className="cc-in" value={question.kind} onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,kind:event.target.value as SurveyQuestion['kind'],options:event.target.value==='choice'?item.options:[]}:item) }))}><option value="rating">Rating (1–5)</option><option value="choice">Multiple choice</option><option value="text">Written feedback</option></select>{question.kind==='choice' && <input className="cc-in" value={question.options.join(', ')} placeholder="Options, separated by commas" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,options:event.target.value.split(',').map(value => value.trim()).filter(Boolean)}:item) }))}/>}<button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:current.questions.filter(item => item.id!==question.id) }))}>Remove</button></div>)}
+                  <button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:[...current.questions,{id:crypto.randomUUID(),question:'',kind:'rating',options:[],required:true}] }))}><Plus size={14}/> Add question</button>
+                </div>}
+              </section>}
 
             <div className="cc-grid-review">
               <section className="cc-card cc-review-card">
@@ -1086,7 +1114,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 };
 
 const CSS = `
-.cc-publish-dialog{width:calc(100% - 2rem);max-width:460px;border:1px solid #e5e7eb;border-radius:18px;padding:28px;color:#111827;box-shadow:0 24px 70px #0f172a33}
+.cc-publish-dialog{position:fixed;inset:0;margin:auto;width:calc(100% - 2rem);max-width:460px;height:fit-content;border:1px solid #e5e7eb;border-radius:18px;padding:28px;color:#111827;box-shadow:0 24px 70px #0f172a33}
 .cc-publish-dialog::backdrop{background:rgba(15,23,42,.6);backdrop-filter:blur(4px)}
 .cc-publish-icon{display:inline-flex;padding:12px;border-radius:14px;background:#fdf2f8;color:#AF1F60}
 .cc-publish-dialog h2{font-size:21px;margin:18px 0 10px}
@@ -1303,7 +1331,7 @@ textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical
 .cc-assign-deadline input{grid-column:2;grid-row:1 / span 2;background:#fff}
 .cc-assign-deadline em{grid-column:1;font-size:.75rem;line-height:1.5}
 .cc-assign-filters .cc-in{height:44px;border-radius:10px;font-size:.85rem}
-.cc-assign-filters .cc-w-dept{width:210px}
+.cc-filter-trigger{height:44px;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}.cc-filter-trigger span{min-width:18px;height:18px;border-radius:999px;background:var(--p);color:#fff;font-size:.68rem;display:grid;place-items:center}.cc-filter-modal{position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.42);display:grid;place-items:center;padding:1rem}.cc-filter-modal-box{width:min(560px,100%);background:#fff;border-radius:14px;padding:1.35rem;box-shadow:0 24px 60px rgba(15,23,42,.25);display:grid;gap:1.25rem}.cc-filter-modal-head{display:flex;justify-content:space-between;gap:1rem}.cc-filter-modal-head h3{margin:0;font-size:1.05rem}.cc-filter-modal-head p{margin:.3rem 0 0;color:var(--mu);font-size:.82rem}.cc-filter-group{display:grid;gap:.65rem}.cc-filter-group>strong{font-size:.82rem;color:#334155}.cc-filter-chips{display:flex;flex-wrap:wrap;gap:.55rem}.cc-filter-chips button{border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:999px;padding:.45rem .75rem;font-size:.78rem;font-weight:650;cursor:pointer}.cc-filter-chips button.selected{border-color:var(--p);background:var(--ps);color:var(--p)}.cc-filter-modal-actions{display:flex;justify-content:space-between;gap:.75rem;padding-top:.25rem;border-top:1px solid #edf0f4}
 .cc-assign-list-label{display:flex;justify-content:space-between;font-size:.75rem;font-weight:650;color:#64748b;margin-bottom:-8px}
 .cc-assign-list-label>span:last-child{font-weight:400}
 .cc-assign-card .cc-people{grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;max-height:420px;padding:3px}
@@ -1315,7 +1343,7 @@ textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical
 .cc-assign-card .cc-person strong{font-size:.82rem}
 .cc-assign-card .cc-person div>span{font-size:.73rem}
 .cc-assign-card .cc-person small{font-size:.68rem;color:#64748b;overflow-wrap:anywhere}
-@media(max-width:640px){.cc-assign-card{padding:16px}.cc-assign-heading{flex-wrap:wrap}.cc-assign-total{margin-left:auto}.cc-assign-deadline{grid-template-columns:1fr}.cc-assign-deadline input{grid-column:1;grid-row:2}.cc-assign-deadline em{grid-row:3}.cc-assign-filters{flex-wrap:wrap}.cc-assign-filters .cc-search,.cc-assign-filters .cc-w-dept{width:100%;flex-basis:100%}.cc-assign-card .cc-people{grid-template-columns:minmax(0,1fr)}.cc-assign-toolbar .cc-pills button{padding:7px 9px}}
+@media(max-width:640px){.cc-assign-card{padding:16px}.cc-assign-heading{flex-wrap:wrap}.cc-assign-total{margin-left:auto}.cc-assign-deadline{grid-template-columns:1fr}.cc-assign-deadline input{grid-column:1;grid-row:2}.cc-assign-deadline em{grid-row:3}.cc-assign-filters{flex-wrap:wrap}.cc-assign-filters .cc-search,.cc-filter-trigger{width:100%;flex-basis:100%}.cc-assign-card .cc-people{grid-template-columns:minmax(0,1fr)}.cc-assign-toolbar .cc-pills button{padding:7px 9px}}
 .cc-files{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
 .cc-files li{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border:1px solid var(--ln);border-radius:9px}
 .cc-ft{font-size:10px;font-weight:800;padding:.2rem .35rem;border-radius:5px;flex-shrink:0}

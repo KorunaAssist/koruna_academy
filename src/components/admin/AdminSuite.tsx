@@ -1,5 +1,6 @@
 import React from 'react';
 import { EmployeeQuizScores } from './EmployeeQuizScores';
+import { FeedbackReportsView } from './FeedbackReportsView';
 import {
   Trash2,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { UserSessionData, UserRole } from '../../services/auth';
+import type { CourseSurvey } from '../../services/courseSurveys';
 import { dbService, type Course, type QuizQuestion, type Department, type SystemSettings, type RolePermissions, type DatabaseUser } from '../../services/db';
 import { ContentCreatorView } from './ContentCreatorView';
 import { AdminOverviewView } from './AdminOverviewView';
@@ -59,7 +61,7 @@ interface AdminSuiteProps {
   setAdminUserForm: React.Dispatch<React.SetStateAction<any>>;
   newDeptName: string;
   setNewDeptName: React.Dispatch<React.SetStateAction<string>>;
-  handleSaveCourse: (e: React.FormEvent) => Promise<void>;
+  handleSaveCourse: (e: React.FormEvent, survey?: CourseSurvey) => Promise<void>;
   handleStartEditCourse: (course: Course) => void;
   handleDeleteCourse: (courseId: string) => Promise<void>;
   handleAssignCourse: (courseId: string, userEmail: string) => Promise<void>;
@@ -346,6 +348,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false);
   const [addUserModalTab, setAddUserModalTab] = React.useState<'user' | 'dept'>('user');
   const [courseToDelete, setCourseToDelete] = React.useState<{ id: string; title: string; contentType?: string } | null>(null);
+  const [creatorInitialTab, setCreatorInitialTab] = React.useState<'details' | 'review'>('details');
 
   // Derived data
   const coursesOnly = courses.filter(c => c.contentType !== 'document');
@@ -465,6 +468,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
         <ContentCreatorView
           userSession={userSession}
           editingCourseId={editingCourseId}
+          initialTab={creatorInitialTab}
           courses={courses}
           users={users}
           assignedUserEmails={assignedUserEmails}
@@ -494,6 +498,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       {activeInnerTab === 'skill_catalogue' && <SkillsManager />}
       {activeInnerTab === 'role_skills' && <RoleSkillsManager />}
       {activeInnerTab === 'quiz_scores' && <EmployeeQuizScores users={users} courses={allCourses} />}
+      {activeInnerTab === 'feedback_reports' && <FeedbackReportsView userSession={userSession} courses={allCourses} />}
       {activeInnerTab === 'team_reports' && <TeamReportsView key="admin-team-reports" userSession={userSession} onChanged={loadPlatformData} />}
       {activeInnerTab === 'teams' && <TeamReportsView key="admin-team-management" userSession={userSession} initialTab="teams" onChanged={loadPlatformData} />}
 
@@ -503,7 +508,8 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
         <CourseInventoryView
           coursesOnly={coursesOnly}
           categories={categories}
-          handleStartEditCourse={handleStartEditCourse}
+          handleStartEditCourse={(course) => { setCreatorInitialTab('details'); handleStartEditCourse(course); }}
+          onViewFeedback={() => setActiveInnerTab('feedback_reports')}
           setActiveInnerTab={setActiveInnerTab}
           setCourseToDelete={setCourseToDelete}
         />
