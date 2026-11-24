@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BookOpen, Search } from 'lucide-react';
 import type { Course } from '../../services/db';
 import { CourseCard } from '../courses/CourseCard';
+import { courseSurveyService } from '../../services/courseSurveys';
 
 interface CourseInventoryViewProps {
   coursesOnly: Course[];
@@ -22,6 +23,17 @@ export const CourseInventoryView: React.FC<CourseInventoryViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [coursesWithFeedback,setCoursesWithFeedback] = useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    let active = true;
+    Promise.all(coursesOnly.map(async course => {
+      const [survey,result] = await Promise.all([courseSurveyService.load(course.id),courseSurveyService.results(course.id)]);
+      return survey.enabled && (result?.responses || 0) > 0 ? course.id : null;
+    })).then(ids => { if (active) setCoursesWithFeedback(new Set(ids.filter((id): id is string => !!id))); })
+      .catch(() => { if (active) setCoursesWithFeedback(new Set()); });
+    return () => { active = false; };
+  },[coursesOnly]);
 
   const q = (s: string) => s.toLowerCase();
 
@@ -81,7 +93,7 @@ export const CourseInventoryView: React.FC<CourseInventoryViewProps> = ({
             course={course}
             variant="admin"
             onEditClick={() => { handleStartEditCourse(course); setActiveInnerTab('creator'); }}
-            onFeedbackClick={() => onViewFeedback(course)}
+            onFeedbackClick={coursesWithFeedback.has(course.id) ? () => onViewFeedback(course) : undefined}
             onDeleteClick={() => setCourseToDelete({ id: course.id, title: course.title, contentType: course.contentType })}
           />
         ))}
