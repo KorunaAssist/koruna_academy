@@ -7,6 +7,7 @@ interface CourseInventoryViewProps {
   coursesOnly: Course[];
   categories: string[];
   handleStartEditCourse: (course: Course) => void;
+  onViewFeedback: (course: Course) => void;
   setActiveInnerTab: (tab: string) => void;
   setCourseToDelete: (item: { id: string; title: string; contentType?: string } | null) => void;
 }
@@ -15,6 +16,7 @@ export const CourseInventoryView: React.FC<CourseInventoryViewProps> = ({
   coursesOnly,
   categories,
   handleStartEditCourse,
+  onViewFeedback,
   setActiveInnerTab,
   setCourseToDelete,
 }) => {
@@ -79,6 +81,7 @@ export const CourseInventoryView: React.FC<CourseInventoryViewProps> = ({
             course={course}
             variant="admin"
             onEditClick={() => { handleStartEditCourse(course); setActiveInnerTab('creator'); }}
+            onFeedbackClick={() => onViewFeedback(course)}
             onDeleteClick={() => setCourseToDelete({ id: course.id, title: course.title, contentType: course.contentType })}
           />
         ))}

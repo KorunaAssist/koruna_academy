@@ -9,11 +9,13 @@ import type { UserSessionData } from '../../services/auth';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { CourseCard, CourseBannerHeader } from '../courses/CourseCard';
 import { skillsService,type Skill } from '../../services/skills';
+import { courseSurveyService,type CourseSurvey,type SurveyQuestion } from '../../services/courseSurveys';
 import { LoadingModal } from '../LoadingModal';
 
 export interface ContentCreatorViewProps {
   userSession?: UserSessionData;
   editingCourseId: string | null;
+  initialTab?: TabId;
   courses: Course[];
   users: DatabaseUser[];
   assignedUserEmails: string[];
@@ -44,7 +46,7 @@ export interface ContentCreatorViewProps {
   setCourseQuiz: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
   courseModules: { id: string; title: string }[];
   setCourseModules: React.Dispatch<React.SetStateAction<{ id: string; title: string }[]>>;
-  handleSaveCourse: (e: React.FormEvent) => Promise<void>;
+  handleSaveCourse: (e: React.FormEvent, survey?: CourseSurvey) => Promise<void>;
   resetCourseFormState: () => void;
   onOpenInventoryModal: () => void;
   addQuizQuestionField: () => void;
@@ -110,13 +112,14 @@ const getEmbedUrl = (url: string) => {
 };
 
 export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
-  userSession, editingCourseId, courses, users, assignedUserEmails, setAssignedUserEmails,
+  userSession, editingCourseId, initialTab = 'details', courses, users, assignedUserEmails, setAssignedUserEmails,
   assignmentDueDate, setAssignmentDueDate,
   courseForm, setCourseForm, courseLessons, setCourseLessons, courseQuiz, setCourseQuiz,
   courseModules, setCourseModules, handleSaveCourse, resetCourseFormState, onOpenInventoryModal,
   addQuizQuestionField, removeQuizQuestionField, showToast
 }) => {
   const [tab, setTab] = useState<TabId>('details');
+  useEffect(() => { setTab(initialTab); }, [editingCourseId, initialTab]);
   const [isUploading, setIsUploading] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -150,7 +153,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
     setConfirmPublish(false);
     setIsSaving(true);
     try {
-      await handleSaveCourse(event);
+      await handleSaveCourse(event,survey);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to finish saving the course. Please review and try again.');
     } finally {
@@ -168,6 +171,8 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [docPreview, setDocPreview] = useState(false);
   const [quizTest, setQuizTest] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [survey,setSurvey] = useState<CourseSurvey>({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] });
+  const [surveyResults,setSurveyResults] = useState<{ responses:number; questions:{ id:string; question:string; kind:SurveyQuestion['kind']; responses:number; average:number|null; comments:{text:string;respondent:string|null}[] }[] } | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
   const [skillSearch,setSkillSearch] = useState('');
@@ -183,6 +188,14 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
       .finally(() => { if (active) setSkillsLoading(false); });
     return () => { active = false; };
   },[userSession?.id,skillsRetry]);
+  useEffect(() => {
+    let active = true;
+    if (!editingCourseId) { setSurvey({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] }); return; }
+    courseSurveyService.load(editingCourseId).then(value => { if (active) setSurvey(value); })
+      .catch(reason => { if (active) showToast(reason instanceof Error ? reason.message : 'Unable to load the course survey.'); });
+    courseSurveyService.results(editingCourseId).then(value => { if (active) setSurveyResults(value); }).catch(() => { if (active) setSurveyResults(null); });
+    return () => { active = false; };
+  },[editingCourseId]);
 
   const isDocument = courseForm.contentType === 'document';
   const canReassignCreator = userSession?.role === 'admin';
@@ -994,6 +1007,17 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
               </div>
             </section>
 
+              {!isDocument && <section className="cc-card cc-review-card">
+                <div className="cc-card-h between"><span><ListChecks size={15}/> Completion feedback survey</span><label className="cc-check"><input type="checkbox" checked={survey.enabled} onChange={event => setSurvey(current => ({ ...current,enabled:event.target.checked }))}/> Enable</label></div>
+                {survey.enabled && <div className="cc-stack" style={{ gap: '0.7rem' }}>
+                  <label className="cc-check"><input type="checkbox" checked={survey.requiredForCertificate} onChange={event => setSurvey(current => ({ ...current,requiredForCertificate:event.target.checked }))}/> Require before showing certificate</label>
+                  <p className="cc-muted">Employees choose whether each feedback response is anonymous.</p>
+                  {survey.questions.map(question => <div className="cc-lesson-row" key={question.id}><input className="cc-in" value={question.question} placeholder="Survey question" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,question:event.target.value}:item) }))}/><select className="cc-in" value={question.kind} onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,kind:event.target.value as SurveyQuestion['kind'],options:event.target.value==='choice'?item.options:[]}:item) }))}><option value="rating">Rating (1–10)</option><option value="choice">Multiple choice</option><option value="text">Written feedback</option></select>{question.kind==='choice' && <input className="cc-in" value={question.options.join(', ')} placeholder="Options, separated by commas" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,options:event.target.value.split(',').map(value => value.trim()).filter(Boolean)}:item) }))}/>}<button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:current.questions.filter(item => item.id!==question.id) }))}>Remove</button></div>)}
+                  <button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:[...current.questions,{id:crypto.randomUUID(),question:'',kind:'rating',options:[],required:true}] }))}><Plus size={14}/> Add question</button>
+                  {editingCourseId && surveyResults && <div className="cc-tip" style={{ marginTop: '0.5rem' }}><strong>Feedback results: {surveyResults.responses} response{surveyResults.responses === 1 ? '' : 's'}</strong>{surveyResults.questions.map(result => <div key={result.id} style={{ marginTop: '0.35rem' }}>{result.question}: {result.kind === 'rating' ? (result.average === null ? 'No ratings yet' : `${result.average} / 10`) : `${result.responses} response${result.responses === 1 ? '' : 's'}`}{result.kind === 'text' && result.comments.slice(0,3).map((comment,index) => <p key={index} style={{ margin: '0.25rem 0', fontWeight: 400 }}>“{comment.text}” {comment.respondent ? `— ${comment.respondent}` : '— Anonymous'}</p>)}</div>)}</div>}
+                </div>}
+              </section>}
+
             <div className="cc-grid-review">
               <section className="cc-card cc-review-card">
                 <div className="cc-review-card-head">
@@ -1086,7 +1110,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
 };
 
 const CSS = `
-.cc-publish-dialog{width:calc(100% - 2rem);max-width:460px;border:1px solid #e5e7eb;border-radius:18px;padding:28px;color:#111827;box-shadow:0 24px 70px #0f172a33}
+.cc-publish-dialog{position:fixed;inset:0;margin:auto;width:calc(100% - 2rem);max-width:460px;height:fit-content;border:1px solid #e5e7eb;border-radius:18px;padding:28px;color:#111827;box-shadow:0 24px 70px #0f172a33}
 .cc-publish-dialog::backdrop{background:rgba(15,23,42,.6);backdrop-filter:blur(4px)}
 .cc-publish-icon{display:inline-flex;padding:12px;border-radius:14px;background:#fdf2f8;color:#AF1F60}
 .cc-publish-dialog h2{font-size:21px;margin:18px 0 10px}
