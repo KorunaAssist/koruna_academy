@@ -115,7 +115,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
         </article>;
       })}
     </div></>
-    {assignment && <div className="lp-overlay"><section className="lp-dialog lp-stack" role="dialog" aria-modal="true" aria-labelledby="lp-assign-title">
+    {assignment && <div className="lp-overlay"><section className="lp-dialog lp-stack lpa-assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="lp-assign-title">
       <div className="lp-toolbar"><h2 id="lp-assign-title">Manage assignments: {assignment.name}</h2><button className="lp-icon" aria-label="Close assignment" disabled={busy} onClick={() => setAssignment(null)}><X size={20}/></button></div>
       <p>Assign the published roadmap to employees or remove a managed assignment. Removing an assignment preserves completed course progress.</p>
       {!!managedAssignments.length && <section className="lpa-managed-assignments"><h3>Currently assigned</h3>{managedAssignments.map(enrolment => {
