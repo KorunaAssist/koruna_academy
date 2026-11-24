@@ -1,6 +1,6 @@
 import { isSupabaseConfigured,supabase } from '../lib/supabase';
-import { learningPathService } from './learningPaths';
-import { skillsService } from './skills';
+import { emptyPathData,learningPathService,type PathData } from './learningPaths';
+import { skillsService,type Skill,type SkillProgress,type SkillRequirement } from './skills';
 
 export interface CareerStage {
   id: string; title: string; description: string;
@@ -12,6 +12,10 @@ export interface CareerPath {
   status: 'draft' | 'published' | 'archived'; created_by: string | null; created_at: string;
 }
 export interface CareerGoal { user_id: string; path_id: string; selected_at: string }
+export interface CareerWorkspace {
+  paths: CareerPath[]; goals: CareerGoal[]; roadmaps: PathData;
+  skills: Skill[]; requirements: SkillRequirement[]; progress: SkillProgress[];
+}
 
 function configured() {
   if (!isSupabaseConfigured()) throw new Error('Connect Supabase to create and track career paths.');
@@ -52,13 +56,15 @@ export const careerPathService = {
   },
 };
 
-export async function loadCareerWorkspace() {
-  const results = await Promise.allSettled([
-    careerPathService.load(),learningPathService.load(),skillsService.dashboard(),
-  ] as const);
-  for (const result of results) if (result.status==='rejected') throw result.reason;
-  const [career,roadmaps,skills] = results;
-  if (career.status!=='fulfilled' || roadmaps.status!=='fulfilled' || skills.status!=='fulfilled') throw new Error('Unable to load career paths.');
-  return {...career.value,roadmaps:roadmaps.value,...skills.value};
+export async function loadCareerWorkspace(): Promise<CareerWorkspace> {
+  const career = await careerPathService.load();
+  return {...career,roadmaps:emptyPathData,skills:[],requirements:[],progress:[]};
 }
-export type CareerWorkspace = Awaited<ReturnType<typeof loadCareerWorkspace>>;
+
+export async function loadCareerSupportingData(): Promise<Pick<CareerWorkspace,'roadmaps'|'skills'|'requirements'|'progress'>> {
+  const [roadmaps,skills] = await Promise.allSettled([learningPathService.load(),skillsService.dashboard()] as const);
+  return {
+    roadmaps:roadmaps.status==='fulfilled' ? roadmaps.value : emptyPathData,
+    ...(skills.status==='fulfilled' ? skills.value : { skills:[],requirements:[],progress:[] }),
+  };
+}

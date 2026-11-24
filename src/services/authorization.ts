@@ -3,8 +3,8 @@ export type UserRole = typeof USER_ROLES[number];
 export type Capability = 'viewDashboard' | 'studyCourses' | 'viewTeamReports' | 'assignCourses' | 'approveAssessments' | 'editCourses' | 'manageUsers' | 'systemSettings';
 
 const LEARNING_TABS = new Set(['dashboard', 'home', 'learn', 'catalog', 'catalog_courses', 'my_courses', 'knowledge_base', 'feed', 'rewards', 'engage', 'career', 'career_path', 'my_koruna', 'learning_path', 'progress', 'certificates', 'skills', 'notifications', 'settings', 'profile']);
-const ADMIN_TABS = new Set(['team_reports', 'quiz_scores', 'overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'career_paths', 'role_skills', 'skill_catalogue', 'teams', 'users', 'permissions', 'settings']);
-const TRAINER_TABS = new Set(['team_reports', 'creator', 'inventory', 'certificate_templates', 'assignments', 'learning_paths', 'career_paths']);
+const ADMIN_TABS = new Set(['team_reports', 'quiz_scores', 'feedback_reports', 'overview', 'creator', 'inventory', 'document_inventory', 'certificate_templates', 'assignments', 'learning_paths', 'career_paths', 'role_skills', 'skill_catalogue', 'teams', 'users', 'permissions', 'settings']);
+const TRAINER_TABS = new Set(['team_reports', 'feedback_reports', 'creator', 'inventory', 'certificate_templates', 'assignments', 'learning_paths', 'career_paths']);
 
 export function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value);
