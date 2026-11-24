@@ -1,0 +1,213 @@
+
+VERSION 2 — PROPOSED UNIFIED ACADEMY SCOPE
+Working proposal | 19 November 2026 | Miss Jess's leadership items approved; developer feasibility and deployment verification pending
+
+1. Purpose and positioning
+Platform name: Koruna Academy.
+Objective: Extend the existing Academy to serve KA and KC through one platform, reducing duplicated development, hosting, administration, and maintenance where technically feasible.
+Baseline: All original feature descriptions above remain unchanged. They describe source-code functionality, not necessarily verified production capability.
+
+2. Proposed content structure
+KA Training — KA-specific courses and learning paths.
+KC Training — KC-specific courses, including AI tools and Hybrid AI-Enabled EA/VA training.
+Shared Training — common courses available to both organisations, maintained once rather than duplicated.
+The three categories are a proposed logical content structure. Developers must confirm whether native folders, categories, learning paths, or another supported mechanism is best.
+
+3. Proposed access model
+KA employees — KA Training and Shared Training only.
+KC employees — KC Training and Shared Training only.
+KA trainers/team leaders — KA and relevant shared content and records within their authorised scope.
+KC trainers/team leaders — KC and relevant shared content and records within their authorised scope.
+Super Admins — cross-organisation access for authorised central administration.
+Course visibility, assignments, enrolment, reporting, assessments, progress, certificates, and downloadable resources must respect organisation and role permissions. Enforcement must be server-side, not merely hidden navigation.
+Shared courses may be reused across organisations, but learner records and organisation-specific reporting must remain distinguishable.
+
+4. Proposed enhancements and gap assessment
+Organisation attribute on users | Confirm whether departments/roles can already distinguish KA from KC  — Pending Verification
+Course audience classification (KA / KC / Shared) | Determine existing support and changes needed  — Pending Verification
+Organisation-aware catalogue, search and learning paths — Pending Verification.
+Organisation-aware enrolment, assignments and prerequisites — Pending Verification.
+Organisation-scoped trainer/team leader reports — Pending Verification.
+Cross-organisation Super Admin controls — Pending Verification.
+Shared course content with separate learner records and certificates — Pending Verification.
+Platform entry point and branding | Miss Jess requested retaining the platform's current appearance (19 Nov 2026). Current visual branding, access and entry-point arrangement require platform review; developer feasibility remains Pending Verification.
+Database migration, storage, and security impact — Pending Verification.
+
+5. Decisions and confirmations register
+D01 | Leadership | Confirm 'Koruna Academy' as official unified platform name - Approved by Miss Jess (19 Nov 2026)
+D02 | Leadership | Approve KA Training, KC Training, Shared Training as content categories - Approved by Miss Jess (19 Nov 2026)
+D03 | Leadership | Approve organisation-only employee access and cross-organisation Super Admin access - Approved by Miss Jess (19 Nov 2026)
+D04 | Leadership | Shared-course governance item approved by Miss Jess (19 Nov 2026); exact permission assignments to be documented before implementation
+D05 | Developers | Confirm whether existing roles/departments and authorisation support organisation isolation - Pending Verification
+D06 | Developers | Confirm whether courses can be organised into KA, KC and Shared Training folders and whether the system can prevent unauthorised access to restricted courses, files, and reports - Pending Verification
+D07 | Developers | Confirm shared-course assignment and separate learner progress, quiz and certificate records - Pending Verification
+D08 | Developers/Leadership | Confirm Koruna Life integration versus independent Academy login/entry point - Pending Verification
+D09 | Developers | Validate source-code features against deployed database and record tested evidence - Pending Verification
+D10 | Developers | Provide effort, dependencies, security considerations and comparative cost estimate - Pending Verification
+
+6. Implementation and acceptance approach
+Stage 1 — Confirm existing working functionality with evidence. Distinguish coded, configured, tested and deployed states.
+Stage 2 — Agree access matrix, shared course governance and user provisioning.
+Stage 3 — Estimate and implement only verified gaps, prioritising reuse.
+Stage 4 — Test with KA employee, KC employee, each organisation's trainer and Super Admin accounts.
+Stage 5 — Confirm isolation of restricted courses and records, shared-course access, reporting and certificates before rollout.
+
+Document status: Leadership scope items approved by Miss Jess on 19 Nov 2026. Developer feasibility, implemented functionality, permissions and production readiness remain unverified. Existing platform appearance to be retained per leadership instruction, subject to review of the current interface.
+
+
+ORIGINAL FEATURES AND SCOPE — BASELINE REFERENCE
+The following original feature inventory is retained for comparison. Source-code descriptions do not by themselves confirm deployed functionality.
+Koruna Academy Features and Scope
+Functional overview and explanations
+Koruna Academy is the learning and development module within Koruna Life. It brings course delivery, assessments, progress tracking, certificates, skills development, career preparation, and training management into one learning workflow.
+This document explains the feature inventory and its practical use for learners, trainers, team leaders, and administrators. The inventory describes implementation in the project source code; it does not confirm that every feature is configured and working in the deployed database.
+Learner features
+Academy Dashboard
+Personalized welcome, overall learning progress, learning hours, assigned courses, resume the most recently opened unfinished course, upcoming deadlines, overdue indicators, and recent certificates.
+This gives learners a quick starting point for their training. They can identify urgent work and return to an unfinished course without searching through the catalogue.
+My Courses
+View assigned training; filter by All Assigned, To Do, or Completed; see completion percentages and deadlines; start, continue, or review a course.
+This is the learner’s assigned workload. Status filters help separate work that still needs attention from training already completed.
+Course Catalogue
+Browse courses in grid or list view; search and filter courses; view course information and progress; separate assigned, completed, and unassigned courses. Starting training is controlled by assignments and prerequisites.
+This supports discovery of available learning content. A course appearing in the catalogue does not by itself grant permission to study it or save progress; assignment and prerequisite checks still apply.
+Learning Path
+View enrolled roadmaps, explore published paths, enroll in a path, see ordered courses and required training, track path completion, identify prerequisite locks, and continue the next available course.
+A learning path groups courses into an ordered training journey. Required courses and prerequisite locks help learners follow the intended sequence rather than choose unrelated lessons.
+My Progress
+Consolidated learning tracker with course status and progress; search by course, category, or code; sort by deadline priority, progress, or title; open training or earned certificates.
+This brings learning records into a single tracker. Sorting by deadline helps a learner prioritize, while progress sorting helps identify partially completed training.
+My Certificates
+View certificates earned from completed courses, open the certificate document, and print or save it as a PDF through the browser. Certificate displays include recipient, course, trainer, issue date, and certificate ID.
+This provides a record of course completion where certification applies. Learners can open the certificate and use their browser to print it or save a PDF copy.
+Skills Dashboard
+View configured skills, training completion percentages, scores out of 10, average score, and skills scoring 8+. Search and filter skills, show archived skills, inspect required lessons, and open the next relevant course.
+This translates completion of linked training into a visible skills score. It helps identify missing lessons, but the score measures training completion rather than independently tested professional proficiency.
+Career Path
+Explore configured career paths, select or clear a career goal, view training requirements and readiness, and open relevant courses. Existing training progress contributes toward the selected goal.
+This connects a career goal to its configured training requirements. Existing learning contributes to readiness, while promotion decisions remain outside this feature.
+
+Team Reports
+Available to authorized managers, trainers, and administrators. Covers learner progress, assignments, learning paths, skills, overdue training, and practical assessment reviews.
+This gives authorized staff visibility into training within their permitted scope. It helps them identify overdue work and practical submissions that need review.
+Course study and assessments
+Course details and syllabus
+Review course information, modules, and lessons.
+Learners can understand the course structure before beginning and identify the lessons they need to complete.
+Lesson delivery
+Read lesson content, play supported videos, and open attached learning resources.
+Lessons combine reading, supported video playback, and resources so training can use more than one delivery format.
+Progress persistence
+Save completed lessons, course progress, last viewed activity, and learning-hour values.
+Saved activity allows learners to resume and lets reporting reflect completed work. Saving depends on database connectivity and valid permissions.
+Access controls
+Check course assignment and prerequisite completion before allowing study.
+These checks ensure the learner meets the configured entry conditions before study begins.
+Quizzes
+Support multiple choice, true/false, and short-answer questions.
+Different question formats allow authors to check recognition, factual understanding, and written responses within the supported assessment flow.
+Timed assessments
+Show a countdown and automatically submit when time expires.
+The countdown establishes a time limit. Automatic submission ends the attempt when the configured time runs out.
+Quiz results
+Calculate scores, apply the configured passing threshold, show pass/fail results, and allow retakes.
+The configured threshold determines pass or fail. Retakes provide another attempt under the supported assessment behavior.
+Assessment history
+Store quiz attempt information for administrative reporting.
+Keeping attempts enables later review of learner outcomes rather than showing only a single current result.
+Practical assessments
+Submit a written case study, track pending/approved/needs-revision status, receive feedback, and resubmit revisions.
+This creates a submission and feedback cycle for work requiring review. Learners can revise a case study when the reviewer requests changes.
+Completion experience
+Show completion feedback and certificate access where applicable.
+Completion feedback helps the learner recognize that the course requirements have been met and find a certificate when the course provides one.
+Document acknowledgment
+Support policy/document content alongside interactive courses.
+This supports content whose purpose is to communicate a policy or document, alongside courses built around lessons and assessments.
+Trainer and administration functions
+Course authoring
+Create and edit courses; configure title, category, code, level, description, trainer, cover image, and certification requirement.
+Course configuration defines what learners see and whether a certificate is expected. Trainer and classification details also help organize the learning catalogue.
+Modules and lessons
+Add and remove modules and lessons, reorder lessons, enter lesson text, and attach video links.
+Modules group related material, while lessons provide the individual study steps. Reordering supports a clear teaching sequence.
+Learning resources
+Upload course attachments and cover images; manage document content.
+Attachments and videos supplement lesson text. Uploaded resources depend on working storage access and permissions.
+Quiz authoring
+Add and remove questions, select question types, configure correct answers, and test quizzes in the editor.
+Question types and correct-answer settings determine how a quiz evaluates learning. Editor testing helps an author check the assessment before learner use.
+Course inventory
+Browse, edit, and delete courses, subject to role and ownership rules.
+This is the management view of existing courses. Edit and delete access follows role and ownership rules, so visibility does not imply unrestricted control.
+Document inventory
+Manage policy and document learning content separately from courses.
+This separates policy and acknowledgment content from structured courses, making each type easier to maintain.
+Training assignments
+Assign courses and learning paths to learners, set deadlines, and remove supported assignments.
+Assignments establish who is expected to complete training and by when. Deadlines support overdue tracking and workload prioritization.
+Learning path management
+Create and edit drafts, order courses, mark required courses, configure prerequisites, publish/archive versions, clone versions, and enroll learners.
+Drafts allow a path to be prepared before publication. Versions support changes to course order and requirements, while enrollment links learners to a path.
+Skills management
+Create, edit, and archive skills; link training requirements to courses and lessons.
+Linking courses and lessons to a skill defines which training contributes to its completion score. Archiving supports management of skills no longer in active use.
+Career path management
+Maintain career paths and their training requirements for learner career planning.
+This defines the learning requirements associated with a career goal. Learner readiness depends on these configured requirements.
+Practical reviews
+Review submissions, approve work, request revisions, and provide feedback.
+Practical review adds human judgment to a written submission. Feedback and revision requests allow learners to improve their work before approval.
+Quiz score reporting
+Inspect employee quiz scores and recorded attempts.
+Attempt records help reviewers inspect assessment outcomes and repeated attempts. They provide supporting evidence alongside overall course progress.
+Team reporting
+Review individual and aggregate learning progress, overdue assignments, skills progress, and pending practical reviews; trigger training reminders.
+This supports oversight across individual and team learning. Reminders help follow up on unfinished work; delivery should be checked in the deployed environment.
+Team management
+Manage reporting teams and membership within the user’s permitted scope.
+Team membership defines reporting relationships and the learners visible within a manager’s authorized scope.
+Certificate templates
+Configure certificate headings and trainer/administrator signatures; preview sample certificates.
+Templates keep certificate presentation consistent across courses. A preview allows headings and signature details to be reviewed before use.
+
+Platform overview
+View platform learning metrics, course information, user counts, and team progress.
+Aggregate metrics give authorized staff an overview of learning activity and participation. Their usefulness depends on complete and accurate underlying records.
+User administration
+Create accounts, change roles and departments, delete users, and create departments.
+Account and department management maintains the people and organizational structure used by training administration. These actions require the appropriate administrative access.
+Permissions and settings
+Access permission displays and platform settings, including assessment configuration.
+Settings govern supported platform behavior, including assessment configuration. Permission displays should be considered together with the actual authorization rules.
+Roles and access
+Role	Main access
+Employee	Personal learning, assigned courses, learning paths, progress, certificates, skills, and career planning.
+Team Leader	Learner functions plus team reporting, training assignment, and practical review capabilities within authorized scope.
+Trainer	Learner functions plus course authoring, management of owned courses, assignments, learning/career paths, certificate templates, and reporting.
+Administrator	Full administration, including users, departments, skills catalogue, inventories, reports, permissions, and platform settings.
+Roles define broad responsibilities, while individual actions remain subject to authorization and ownership rules. Team reporting and practical reviews are limited to the user’s permitted scope.
+Supporting platform functions
+Supporting functions include sign-in and sign-up, password recovery, session timeout warnings, profile and settings access, mobile sidebar navigation, and page-history handling. These functions support access, account recovery, session awareness, and navigation around the Academy.
+
+Current scope limitations
+Learning streak
+The dashboard’s 12-day learning streak is hardcoded. Treat it as a sample display rather than a measured record of consecutive learning days.
+Skill scores
+Skill scores measure completion of required training. A score of 10 out of 10 does not establish professional proficiency or replace a separate competency assessment.
+Career readiness
+Career progress represents training readiness. It does not constitute promotion approval or provide an HR promotion workflow.
+Certificate verification
+Certificate sharing copies a verification URL, but a working public verification page was not established from the reviewed code. Public verification should therefore not be presented as confirmed functionality.
+Certificate PDF export
+PDF export uses the browser’s print or save to PDF workflow. Users open the certificate and save it through their browser.
+Practical assessment content
+The practical assessment currently uses mortgage-specific case-study instructions. Broader training use would require reviewing whether those instructions fit the intended course.
+Database and storage dependencies
+Database-backed features depend on the required Supabase schema, migrations, storage, and permissions being deployed. A feature visible in the interface may still require configuration and testing before it works end to end.
+Academy boundaries and code references
+The social feed, recognition and rewards, clubs, and Knowledge Hub are adjacent Koruna Life modules. They are outside the core Academy scope described here.
+The feature inventory identifies the following source locations for reference. The paths refer to the project workspace.
+E:/Koruna Academy/src/components/Sidebar.tsx — Academy navigation
+E:/Koruna Academy/src/components/DashboardView.tsx — Main learning flows
+E:/Koruna Academy/src/services/authorization.ts — Role and authorization rules
