@@ -28,6 +28,12 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
   const visibleVersions = versions.filter(v => (statusFilter === 'all' || v.status === statusFilter) && `${v.name} ${v.description}`.toLowerCase().includes(pathSearch.toLowerCase()));
   const learnersCount = new Set(data.enrolments.filter(e => versions.some(v => v.id === e.version_id)).map(e => e.user_id)).size;
   const managedAssignments = assignment ? data.enrolments.filter(enrolment => enrolment.path_id === assignment.path_id && enrolment.source === 'assigned') : [];
+  const assignableEmployees = users.filter(user => user.role === 'employee' && user.id);
+  const visibleAssignableEmployees = assignableEmployees.filter(user => `${user.name} ${user.email}`.toLowerCase().includes(learnerSearch.toLowerCase()));
+  const allShownSelected = visibleAssignableEmployees.length > 0 && visibleAssignableEmployees.every(user => assignedUsers.includes(user.id));
+  const toggleAllShown = () => setAssignedUsers(current => allShownSelected
+    ? current.filter(id => !visibleAssignableEmployees.some(user => user.id === id))
+    : Array.from(new Set([...current,...visibleAssignableEmployees.map(user => user.id)])));
   const open = (version: PathVersion | null, source: PathData = data) => {
     const prerequisites: Record<string,string[]> = {};
     for (const edge of source.prerequisites) (prerequisites[edge.course_id] ||= []).push(edge.prerequisite_course_id);
@@ -125,7 +131,7 @@ export function LearningPathsManager({ userSession,courses,users }: { userSessio
           <button className="lp-button" disabled={busy} onClick={() => run(async () => { await learningPathService.setAssignment(assignment.path_id,enrolment.user_id,undefined,true); await reload(); setMessage(`Removed the assignment for ${learner?.name || 'the employee'}.`); })}>Remove Assignment</button></div></div>;
       })}</section>}
       <label className="lp-field">Find employees<input type="search" value={learnerSearch} disabled={busy} onChange={e => setLearnerSearch(e.target.value)}/></label>
-      <h3>Assign employees</h3><div className="lp-picker">{users.filter(u => u.role === 'employee' && u.id && `${u.name} ${u.email}`.toLowerCase().includes(learnerSearch.toLowerCase())).map(u =>
+      <div className="lp-toolbar lpa-assign-picker-heading"><h3>Assign employees</h3><button type="button" className="lp-button" disabled={busy || !visibleAssignableEmployees.length} onClick={toggleAllShown}>{allShownSelected ? 'Deselect All Shown' : 'Select All Shown'}</button></div><div className="lp-picker">{visibleAssignableEmployees.map(u =>
         <label className="lp-check" key={u.id}><input type="checkbox" disabled={busy} checked={assignedUsers.includes(u.id)} onChange={e => setAssignedUsers(previous => e.target.checked ? [...previous,u.id] : previous.filter(id => id !== u.id))}/><span>{u.name}<small>{u.email}</small></span></label>)}</div>
       <label className="lp-field">Deadline (optional)<input type="date" value={deadline} disabled={busy} onChange={e => setDeadline(e.target.value)}/></label>
       {actionError && <p className="lp-alert" role="alert">{actionError}</p>}
