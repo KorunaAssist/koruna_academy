@@ -29,7 +29,7 @@ import { UnderDevelopment } from './UnderDevelopment';
 import { KorunaHomeView } from './koruna/KorunaHomeView';
 import { KorunaAcademyDashboard } from './koruna/KorunaAcademyDashboard';
 import { KnowledgeHubView } from './koruna/KnowledgeHubView';
-import { can, canManageCourse, safeTab } from '../services/authorization';
+import { can, canAccessAdminTab, canManageCourse, safeTab } from '../services/authorization';
 import { learningPathService } from '../services/learningPaths';
 import { isCourseAssigned } from '../services/courseAccess';
 import { missingPrerequisites } from '../services/learningPathRules';
@@ -88,7 +88,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     } catch (e) {
       // Ignore
     }
+    // Admin Suite sections are client-side tabs, so save them as individual
+    // browser-history entries just like employee pages.
+    if (typeof window !== 'undefined') {
+      const account = userSession.id || userSession.email;
+      const current = window.history.state?.korunaAdminInner;
+      if (current?.account !== account || current?.tab !== tab) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('page','admin_suite');
+        url.searchParams.set('adminTab',tab);
+        window.history.pushState({ ...window.history.state,korunaPage:{ account,tab:'admin_suite' },korunaAdminInner:{ account,tab } },'',url);
+      }
+    }
   };
+
+  useEffect(() => {
+    const account = userSession.id || userSession.email;
+    const restoreAdminTab = (event: PopStateEvent) => {
+      const saved = event.state?.korunaAdminInner;
+      if (saved?.account === account && typeof saved.tab === 'string' && canAccessAdminTab(userSession.role,saved.tab)) {
+        setActiveInnerTabState(saved.tab);
+        try { localStorage.setItem('koruna_active_inner_tab',saved.tab); } catch { /* Ignore storage errors. */ }
+      }
+    };
+    window.addEventListener('popstate',restoreAdminTab);
+    return () => window.removeEventListener('popstate',restoreAdminTab);
+  },[userSession.email,userSession.id,userSession.role]);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
