@@ -504,7 +504,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const prog = progressList.find(p => p.courseId === targetId && (studyingAssignmentId === null || p.applicationId === studyingAssignmentId));
       if (!prog) throw new Error('Unable to find course progress. Please reopen the course.');
       if (prog) {
-        const c = studyingCourse || courses.find(item => item.id === targetId);
+        // Use the requested course first. A learner may complete a course from
+        // an assessment/lesson flow while another course remains in view.
+        const c = courses.find(item => item.id === targetId) || studyingCourse;
         const hasCourseActivity = prog.progressPercent > 0 ||
           prog.completedLessons.length > 0 ||
           prog.quizAttempts > 0 ||
@@ -548,6 +550,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       else setCompletedCourseModal({ title });
     } catch (error) { setSurveyError(error instanceof Error ? error.message : 'Unable to submit feedback.'); }
     finally { setSubmittingSurvey(false); }
+  };
+
+  const skipPendingSurvey = () => {
+    if (!pendingSurvey) return;
+    const title = pendingSurvey.course.title;
+    const required = pendingSurvey.required;
+    const wasOpeningCertificate = !!certificateAfterSurvey;
+    setPendingSurvey(null);
+    setCertificateAfterSurvey(null);
+    if (wasOpeningCertificate && required) {
+      showToast('Feedback is required before the certificate can be viewed. You can submit it later.');
+      return;
+    }
+    setCompletedCourseModal({ title });
   };
 
   const openCertificate = async (course: Course) => {
@@ -981,7 +997,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'grid', gap: '1rem', marginTop: '1.25rem' }}>{pendingSurvey.survey.questions.map((question,index) => <label key={question.id} style={{ display: 'grid', gap: '0.45rem', fontWeight: 650 }}><span>{index+1}. {question.question}{question.required ? ' *' : ''}</span>{question.kind === 'rating' ? <select value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:Number(event.target.value) }))}><option value="">Choose a rating</option>{Array.from({length:10},(_,value) => <option key={value+1} value={value+1}>{value+1}</option>)}</select> : question.kind === 'choice' ? <select value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))}><option value="">Choose an answer</option>{question.options.map(option => <option key={option} value={option}>{option}</option>)}</select> : <textarea rows={3} value={String(surveyAnswers[question.id] ?? '')} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))} placeholder="Share your feedback" />}</label>)}</div>
             <label style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', marginTop: '1rem', color: '#475569' }}><input type="checkbox" checked={submitSurveyAnonymously} onChange={event => setSubmitSurveyAnonymously(event.target.checked)}/> Submit this feedback anonymously</label>
             {surveyError && <p role="alert" style={{ color: '#b42318' }}>{surveyError}</p>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>{!pendingSurvey.required && <button type="button" className="btn-koruna-outline" disabled={submittingSurvey} onClick={() => { const title=pendingSurvey.course.title; setPendingSurvey(null); setCompletedCourseModal({ title }); }}>Skip for now</button>}<button type="button" className="btn-koruna-solid" disabled={submittingSurvey} onClick={() => void submitPendingSurvey()}>{submittingSurvey ? 'Submitting…' : 'Submit feedback'}</button></div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}><button type="button" className="btn-koruna-outline" disabled={submittingSurvey} onClick={skipPendingSurvey}>Skip for now</button><button type="button" className="btn-koruna-solid" disabled={submittingSurvey} onClick={() => void submitPendingSurvey()}>{submittingSurvey ? 'Submitting…' : 'Submit feedback'}</button></div>
           </div>
         </div>
       )}

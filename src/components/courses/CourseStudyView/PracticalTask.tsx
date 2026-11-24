@@ -62,6 +62,9 @@ export const PracticalTask: React.FC<PracticalTaskProps> = ({
           <Award style={{ color: '#b4690e' }} />
           Practical Case Study Assessment
         </h4>
+        <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#a82c5d', margin: '0.35rem 0 0' }}>
+          Course: {studyingCourse.title}
+        </p>
         <p style={{
           fontSize: '0.85rem',
           color: 'var(--koruna-text-muted)',
