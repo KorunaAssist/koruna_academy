@@ -55,5 +55,23 @@ export async function readSignatureFile(file: File): Promise<string> {
   const preview = new Image();
   preview.src = image;
   await preview.decode().catch(() => { throw new Error('This image could not be opened. Choose another signature file.'); });
+  if (file.type === 'image/jpeg' || file.type === 'image/png') {
+    if (preview.naturalWidth * preview.naturalHeight > 16000000) throw new Error('Signature image dimensions are too large. Choose a smaller image.');
+    const canvas = document.createElement('canvas');
+    canvas.width = preview.naturalWidth; canvas.height = preview.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('Unable to convert this signature. Choose a transparent PNG instead.');
+    context.drawImage(preview, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      const lightestInk = Math.min(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2]);
+      // Fade near-white pixels to keep antialiased edges of dark ink smooth.
+      pixels.data[i + 3] = Math.round(pixels.data[i + 3] * Math.min(1, Math.max(0, (250 - lightestInk) / 50)));
+    }
+    context.putImageData(pixels, 0, 0);
+    const converted = canvas.toDataURL('image/png');
+    if (converted.length > 700000) throw new Error('The converted PNG is too large. Resize the signature and try again.');
+    return converted;
+  }
   return image;
 }
