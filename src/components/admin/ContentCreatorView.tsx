@@ -173,7 +173,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [docPreview, setDocPreview] = useState(false);
   const [quizTest, setQuizTest] = useState(false);
   const [showTips, setShowTips] = useState(false);
-  const [survey,setSurvey] = useState<CourseSurvey>({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] });
+  const [survey,setSurvey] = useState<CourseSurvey>({ enabled:false,requiredForCertificate:false,allowSkip:true,anonymous:false,questions:[] });
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
   const [skillSearch,setSkillSearch] = useState('');
@@ -191,7 +191,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   },[userSession?.id,skillsRetry]);
   useEffect(() => {
     let active = true;
-    if (!editingCourseId) { setSurvey({ enabled:false,requiredForCertificate:false,anonymous:false,questions:[] }); return; }
+    if (!editingCourseId) { setSurvey({ enabled:false,requiredForCertificate:false,allowSkip:true,anonymous:false,questions:[] }); return; }
     courseSurveyService.load(editingCourseId).then(value => { if (active) setSurvey(value); })
       .catch(reason => { if (active) showToast(reason instanceof Error ? reason.message : 'Unable to load the course survey.'); });
     return () => { active = false; };
@@ -1013,10 +1013,13 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
             </section>
 
               {!isDocument && <section className="cc-card cc-review-card">
-                <div className="cc-card-h between"><span><ListChecks size={15}/> Completion feedback survey</span><label className="cc-check"><input type="checkbox" checked={survey.enabled} onChange={event => setSurvey(current => ({ ...current,enabled:event.target.checked }))}/> Enable</label></div>
+                <div className="cc-card-h between"><span><ListChecks size={15}/> Completion feedback survey</span><label className="cc-survey-toggle"><span>{survey.enabled ? 'Enabled' : 'Disabled'}</span><input type="checkbox" role="switch" aria-label="Enable completion feedback survey" checked={survey.enabled} onChange={event => setSurvey(current => ({ ...current,enabled:event.target.checked }))}/><span className="cc-survey-toggle-track" aria-hidden="true"/></label></div>
                 {survey.enabled && <div className="cc-stack" style={{ gap: '0.7rem' }}>
-                  <label className="cc-check"><input type="checkbox" checked={survey.requiredForCertificate} onChange={event => setSurvey(current => ({ ...current,requiredForCertificate:event.target.checked }))}/> Require before showing certificate</label>
-                  <p className="cc-muted">Employees choose whether each feedback response is anonymous.</p>
+                  <div className="cc-survey-settings">
+                    <label className="cc-survey-option"><input type="checkbox" checked={survey.allowSkip && !survey.requiredForCertificate} disabled={survey.requiredForCertificate} onChange={event => setSurvey(current => ({ ...current,allowSkip:event.target.checked }))}/><span><strong>Allow learners to skip this survey</strong><small>{survey.requiredForCertificate ? 'Unavailable while feedback is required for the certificate.' : 'Show a Skip for now button after course completion.'}</small></span></label>
+                    <label className="cc-survey-option"><input type="checkbox" checked={survey.requiredForCertificate} onChange={event => setSurvey(current => ({ ...current,requiredForCertificate:event.target.checked,allowSkip:event.target.checked ? false : current.allowSkip }))}/><span><strong>Require before showing certificate</strong><small>The certificate stays locked until feedback is submitted.</small></span></label>
+                    <p>Learners choose whether to submit their feedback anonymously.</p>
+                  </div>
                   {survey.questions.map(question => <div className="cc-lesson-row" key={question.id}><input className="cc-in" value={question.question} placeholder="Survey question" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,question:event.target.value}:item) }))}/><select className="cc-in" value={question.kind} onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,kind:event.target.value as SurveyQuestion['kind'],options:event.target.value==='choice'?item.options:[]}:item) }))}><option value="rating">Rating (1–5)</option><option value="choice">Multiple choice</option><option value="text">Written feedback</option></select>{question.kind==='choice' && <input className="cc-in" value={question.options.join(', ')} placeholder="Options, separated by commas" onChange={event => setSurvey(current => ({ ...current,questions:current.questions.map(item => item.id===question.id ? {...item,options:event.target.value.split(',').map(value => value.trim()).filter(Boolean)}:item) }))}/>}<button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:current.questions.filter(item => item.id!==question.id) }))}>Remove</button></div>)}
                   <button type="button" className="cc-btn sm" onClick={() => setSurvey(current => ({ ...current,questions:[...current.questions,{id:crypto.randomUUID(),question:'',kind:'rating',options:[],required:true}] }))}><Plus size={14}/> Add question</button>
                 </div>}
@@ -1349,6 +1352,8 @@ textarea.cc-in{height:auto;padding:.75rem .8rem;line-height:1.55;resize:vertical
 .cc-ft{font-size:10px;font-weight:800;padding:.2rem .35rem;border-radius:5px;flex-shrink:0}
 
 /* review */
+.cc-survey-toggle{display:inline-flex;align-items:center;gap:9px;font-size:.76rem;font-weight:700;color:#475569;cursor:pointer}.cc-survey-toggle input{position:absolute;opacity:0;width:1px;height:1px}.cc-survey-toggle-track{width:40px;height:22px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .2s;flex-shrink:0}.cc-survey-toggle-track:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .2s}.cc-survey-toggle input:checked+.cc-survey-toggle-track{background:var(--p)}.cc-survey-toggle input:checked+.cc-survey-toggle-track:after{transform:translateX(18px)}.cc-survey-toggle input:focus-visible+.cc-survey-toggle-track{outline:2px solid var(--p);outline-offset:3px}
+.cc-survey-settings{display:grid;gap:10px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}.cc-survey-option{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer}.cc-survey-option input{margin:3px 0 0;accent-color:var(--p);flex-shrink:0}.cc-survey-option span{display:grid;gap:4px}.cc-survey-option strong{font-size:.82rem;color:#334155}.cc-survey-option small,.cc-survey-settings p{font-size:.75rem;line-height:1.5;color:#64748b;margin:0}
 .cc-review-page{display:flex;flex-direction:column;gap:1.25rem}
 .cc-review-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.9rem}
 .cc-review-stat{display:flex;align-items:center;gap:.8rem;min-width:0;background:#fff;border:1px solid var(--ln);border-radius:12px;padding:1rem;box-shadow:0 1px 2px rgba(15,23,42,.03)}

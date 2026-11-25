@@ -27,7 +27,10 @@ test('learning path database lifecycle, permissions, enrolment and progress', as
     for (const file of ['../supabase_schema.sql','../supabase/migrations/202610150001_authorization.sql',
       '../supabase/migrations/202610210001_learning_paths.sql',
       '../supabase/migrations/202610210002_learning_path_builder.sql',
-      '../supabase/migrations/202610210003_repair_learning_progress_triggers.sql']) {
+      '../supabase/migrations/202610210003_repair_learning_progress_triggers.sql',
+      '../supabase/migrations/202611180004_learning_path_assignments.sql',
+      '../supabase/migrations/202611180005_learning_path_versions.sql',
+      '../supabase/migrations/202611240001_learning_path_course_assignments.sql']) {
       await db.exec(await readFile(new URL(file,import.meta.url),'utf8'));
     }
     for (const [name,id] of Object.entries(ids)) {
@@ -79,6 +82,33 @@ test('learning path database lifecycle, permissions, enrolment and progress', as
       assert.ok(row.due_at);
       assert.equal((await as('otherEmployee','SELECT * FROM public.learning_path_enrolments')).rows.length,0);
       assert.equal((await as('otherTrainer','SELECT * FROM public.learning_path_enrolments')).rows.length,0);
+    });
+    await t.test('managed assignments use the account current role and can be removed without deleting progress',async () => {
+      // Simulate a profile that was previously an administrator, then changed to employee.
+      await db.query("UPDATE public.profiles SET role='admin' WHERE id=$1",[ids.employee]);
+      await as('admin',"SELECT public.set_user_role($1,'employee')",[ids.employee]);
+      const assigned = (await as('trainer',"SELECT * FROM public.set_learning_path_assignment($1,$2,'2026-12-08'::timestamptz,false)",[path,ids.employee])).rows[0];
+      assert.equal(assigned.source,'assigned');
+      assert.ok(assigned.due_at);
+      assert.equal((await as('employee','SELECT * FROM public.course_assignments WHERE user_id=$1',[ids.employee])).rows.length,2);
+      await assert.rejects(as('otherTrainer',"SELECT public.set_learning_path_assignment($1,$2,NULL,false)",[path,ids.employee]),/roadmap manager/i);
+      const removed = (await as('trainer',"SELECT * FROM public.set_learning_path_assignment($1,$2,NULL,true)",[path,ids.employee])).rows[0];
+      assert.equal(removed.source,'self');
+      assert.equal(removed.due_at,null);
+      await assert.rejects(as('trainer',"SELECT public.set_learning_path_assignment($1,$2,NULL,true)",[path,ids.employee]),/no managed assignment/i);
+    });
+    await t.test('managers can move an enrolled employee to the latest version and restore or delete archived versions',async () => {
+      const newer = (await as('trainer','SELECT public.clone_learning_path_version($1) AS id',[version])).rows[0].id;
+      await as('trainer',"UPDATE public.learning_path_versions SET status='published' WHERE id=$1",[newer]);
+      const moved = (await as('trainer','SELECT * FROM public.move_learning_path_learner_to_latest_version($1,$2)',[path,ids.employee])).rows[0];
+      assert.equal(moved.version_id,newer);
+      await as('trainer',"UPDATE public.learning_path_versions SET status='archived' WHERE id=$1",[version]);
+      await as('trainer','SELECT public.restore_learning_path_version($1)',[version]);
+      assert.equal((await as('trainer','SELECT status FROM public.learning_path_versions WHERE id=$1',[version])).rows[0].status,'published');
+      await as('trainer',"UPDATE public.learning_path_versions SET status='archived' WHERE id=$1",[version]);
+      await as('trainer','SELECT public.delete_archived_learning_path_version($1)',[version]);
+      assert.equal((await as('trainer','SELECT * FROM public.learning_path_versions WHERE id=$1',[version])).rows.length,0);
+      version = newer;
     });
     await t.test('course starts enrol automatically; assignments alone do not; progress is real',async () => {
       await db.exec("INSERT INTO public.user_progress(user_email,course_id,due_date) VALUES('otherEmployee@example.com','intro','2026-12-01')");

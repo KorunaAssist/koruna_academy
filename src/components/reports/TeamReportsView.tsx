@@ -22,7 +22,9 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
   const [manager,setManager] = useState('');
   const [roadmap,setRoadmap] = useState('');
   const [status,setStatus] = useState('');
-  const [assignment,setAssignment] = useState({ userId: '',kind: 'course' as 'course' | 'path',itemId: '',deadline: '' });
+  const [assignment,setAssignment] = useState({ userIds: [] as string[],kind: 'course' as 'course' | 'path',itemId: '',deadline: '' });
+  const [selectingEmployees,setSelectingEmployees] = useState(false);
+  const [employeeSearch,setEmployeeSearch] = useState('');
   const [team,setTeam] = useState({ managerId: '',memberId: '' });
   const [feedback,setFeedback] = useState<Record<string,string>>({});
   const [reviewStatus,setReviewStatus] = useState('pending');
@@ -63,6 +65,8 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
     && (!status || (status==='overdue' ? l.courses.some(c => c.overdue) || l.paths.some(p => p.overdue)
       : learnerLearningStatus(l)===status)));
   const metrics = teamReportMetrics(visible,data.practicals);
+  const matchingEmployees = data.assignment_learners.filter(person => `${person.name} ${person.email}`.toLowerCase().includes(employeeSearch.trim().toLowerCase()));
+  const allMatchingSelected = matchingEmployees.length > 0 && matchingEmployees.every(person => assignment.userIds.includes(person.id));
   const groupedTeams = groupTeamOverview(data.managers,data.team_members,eligibleEmployees,visible,manager);
   const date = (value: string | null) => value ? new Date(value).toLocaleDateString('en-SG',{ timeZone: 'Asia/Singapore' }) : 'No deadline';
   const reminder = (learner: ReportLearner,kind: 'course' | 'path',id: string,last: string | null) => <span className="tr-reminder">
@@ -70,7 +74,7 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
     {last && <small>Last sent {new Date(last).toLocaleString('en-SG',{ timeZone: 'Asia/Singapore' })}</small>}
   </span>;
   const renderLearner = (learner: ReportLearner) => <article className="lp-panel lp-stack" key={learner.id}>
-          <div className="lp-toolbar"><div><h2>{learner.name}</h2><p className="lp-muted">{learner.email} · {learner.department || 'No department'}</p></div><button className="lp-button" onClick={() => { setAssignment({ userId: learner.id,kind: 'course',itemId: '',deadline: '' }); setTab('assignments'); }}>Assign Training</button></div>
+          <div className="lp-toolbar"><div><h2>{learner.name}</h2><p className="lp-muted">{learner.email} · {learner.department || 'No department'}</p></div><button className="lp-button" onClick={() => { setAssignment({ userIds: [learner.id],kind: 'course',itemId: '',deadline: '' }); setTab('assignments'); }}>Assign Training</button></div>
           <details open><summary>Courses ({learner.courses.length})</summary><div className="tr-table-wrap"><table className="tr-table"><thead><tr><th>Course</th><th>Progress</th><th>Quiz</th><th>Deadline</th><th>Actions</th></tr></thead><tbody>
             {learner.courses.map(course => <tr key={course.course_id}><td><strong>{course.title}</strong><small>{course.code} · {course.assigned ? 'Assigned' : 'Self-started / roadmap'}</small></td><td><progress max={100} value={course.percent} aria-label={`${course.title} progress`}/>{course.percent}%</td><td>{course.quiz_score===null ? '—' : `${course.quiz_score}%`}</td><td><span className={course.overdue ? 'tr-overdue' : ''}>{date(course.due_at)}{course.overdue ? ' · Overdue' : ''}</span></td><td><div className="lp-actions">{reminder(learner,'course',course.course_id,course.last_reminder_at)}{course.assigned && course.can_assign && <button className="lp-button" disabled={busy} onClick={() => run(() => teamReportsService.assign(learner.id,'course',course.course_id,undefined,true),'Course assignment removed; learning progress is retained.')}>Unassign</button>}</div></td></tr>)}
           </tbody></table>{!learner.courses.length && <p className="lp-muted">No course activity yet.</p>}</div></details>
@@ -97,12 +101,23 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
         {!isAdminOverview && !visible.length && <div className="lp-empty">{data.learners.length ? 'No employees match these filters.' : userSession.role==='team_leader' ? 'No employees are assigned to your team yet. Open Manage My Team to select your members.' : 'No employee learning activity is available in your reporting scope yet.'}</div>}
         {isAdminOverview ? <TeamOverviewGroups groups={groupedTeams} renderMember={renderLearner} /> : visible.map(renderLearner)}
       </>}
-      {tab==='assignments' && <form className="lp-panel lp-stack" onSubmit={e => { e.preventDefault(); void run(async () => {
-        if (!assignment.userId || !assignment.itemId) throw new Error('Choose an employee and training.');
-        await teamReportsService.assign(assignment.userId,assignment.kind,assignment.itemId,assignment.deadline ? new Date(`${assignment.deadline}T23:59:59+08:00`).toISOString() : undefined);
-        setAssignment(previous => ({ ...previous,itemId: '',deadline: '' }));
-      },'Training assigned. The employee has received an in-platform notification.'); }}>
-        <h2>Assign Training</h2><div className="tr-filters"><label className="lp-field">Employee<select required disabled={busy} value={assignment.userId} onChange={e => setAssignment({ ...assignment,userId: e.target.value })}><option value="">Choose employee</option>{data.assignment_learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.email}</option>)}</select></label>
+      {tab==='assignments' && <form className="lp-panel lp-stack" onSubmit={e => { e.preventDefault(); void (async () => {
+        if (!assignment.userIds.length || !assignment.itemId) { setError('Choose at least one employee and training.'); return; }
+        setBusy(true); setError(''); setMessage('');
+        try {
+          const results = await Promise.allSettled(assignment.userIds.map(id => teamReportsService.assign(id,assignment.kind,assignment.itemId,assignment.deadline ? new Date(`${assignment.deadline}T23:59:59+08:00`).toISOString() : undefined)));
+          const failed = assignment.userIds.filter((_,index) => results[index].status === 'rejected');
+          setAssignment(previous => ({ ...previous,userIds: failed,...(!failed.length ? { itemId:'',deadline:'' } : {}) }));
+          if (failed.length) setError(`${results.length-failed.length} assignments saved; ${failed.length} failed. Retry the selected employees.`);
+          else setMessage(`Training assigned to ${results.length} employee${results.length === 1 ? '' : 's'}.`);
+          setData(await teamReportsService.load());
+          if (onChanged) await onChanged();
+        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to refresh the report.'); }
+        finally { setBusy(false); }
+      })(); }}>
+        <h2>Assign Training</h2><div><button type="button" className="lp-button" disabled={busy} onClick={() => setSelectingEmployees(true)}>Select employees · {assignment.userIds.length} selected</button></div>
+        {selectingEmployees && <div className="lp-overlay" onClick={() => setSelectingEmployees(false)}><section className="lp-dialog lp-stack tr-employee-dialog" role="dialog" aria-modal="true" aria-labelledby="tr-employee-title" onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') setSelectingEmployees(false); }}><div className="lp-toolbar"><h2 id="tr-employee-title">Select employees</h2><button type="button" className="lp-icon" aria-label="Close employee selection" onClick={() => setSelectingEmployees(false)}>×</button></div><label className="lp-field">Search employees<input type="search" placeholder="Search name or email" value={employeeSearch} onChange={event => setEmployeeSearch(event.target.value)}/></label><div className="lp-toolbar"><span>{assignment.userIds.length} selected · {matchingEmployees.length} shown</span><button type="button" className="lp-button" disabled={!matchingEmployees.length} onClick={() => setAssignment(previous => ({ ...previous,userIds:allMatchingSelected ? previous.userIds.filter(id => !matchingEmployees.some(person => person.id === id)) : Array.from(new Set([...previous.userIds,...matchingEmployees.map(person => person.id)])) }))}>{allMatchingSelected ? 'Deselect All Shown' : 'Select All Shown'}</button></div><div className="tr-assign-list">{matchingEmployees.map(person => <label className="lp-check" key={person.id}><input type="checkbox" checked={assignment.userIds.includes(person.id)} onChange={event => setAssignment(previous => ({ ...previous,userIds:event.target.checked ? [...previous.userIds,person.id] : previous.userIds.filter(id => id !== person.id) }))}/><span>{person.name}<small>{person.email}</small></span></label>)}{!matchingEmployees.length && <p className="lp-muted">No employees match your search.</p>}</div><div className="lp-actions"><button type="button" className="lp-button primary" onClick={() => setSelectingEmployees(false)}>Done</button></div></section></div>}
+        <div className="tr-filters">
           <label className="lp-field">Training type<select disabled={busy} value={assignment.kind} onChange={e => setAssignment({ ...assignment,kind: e.target.value as 'course' | 'path',itemId: '' })}><option value="course">Course</option><option value="path">Learning path</option></select></label>
           <label className="lp-field">Training<select required disabled={busy} value={assignment.itemId} onChange={e => setAssignment({ ...assignment,itemId: e.target.value })}><option value="">Choose training</option>{(assignment.kind==='course' ? data.assignable_courses : data.assignable_paths).map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <label className="lp-field">Deadline (optional)<input type="date" disabled={busy} value={assignment.deadline} onChange={e => setAssignment({ ...assignment,deadline: e.target.value })}/></label></div>

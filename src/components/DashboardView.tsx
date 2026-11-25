@@ -578,7 +578,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const skipPendingSurvey = () => {
-    if (!pendingSurvey) return;
+    if (!pendingSurvey || !pendingSurvey.survey.allowSkip || pendingSurvey.required) return;
     const title = pendingSurvey.course.title;
     const required = pendingSurvey.required;
     const wasOpeningCertificate = !!certificateAfterSurvey;
@@ -1022,7 +1022,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'grid', gap: '1rem', marginTop: '1.25rem' }}>{pendingSurvey.survey.questions.map((question,index) => <label key={question.id} style={{ display: 'grid', gap: '0.45rem', fontWeight: 650 }}><span>{index+1}. {question.question}{question.required ? ' *' : ''}</span>{question.kind === 'rating' ? <select style={{ color: '#0f172a', background: '#ffffff', fontWeight: 650 }} value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:Number(event.target.value) }))}><option value="">Choose a rating (1–5)</option><option value="1">1 — Poor (Lowest)</option><option value="2">2 — Fair</option><option value="3">3 — Good</option><option value="4">4 — Very good</option><option value="5">5 — Excellent (Highest)</option></select> : question.kind === 'choice' ? <select value={surveyAnswers[question.id] ?? ''} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))}><option value="">Choose an answer</option>{question.options.map(option => <option key={option} value={option}>{option}</option>)}</select> : <textarea rows={3} value={String(surveyAnswers[question.id] ?? '')} onChange={event => setSurveyAnswers(current => ({ ...current,[question.id]:event.target.value }))} placeholder="Share your feedback" />}</label>)}</div>
             <label style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', marginTop: '1rem', color: '#475569' }}><input type="checkbox" checked={submitSurveyAnonymously} onChange={event => setSubmitSurveyAnonymously(event.target.checked)}/> Submit this feedback anonymously</label>
             {surveyError && <p role="alert" style={{ color: '#b42318' }}>{surveyError}</p>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}><button type="button" className="btn-koruna-outline" disabled={submittingSurvey} onClick={skipPendingSurvey}>Skip for now</button><button type="button" className="btn-koruna-solid" disabled={submittingSurvey} onClick={() => void submitPendingSurvey()}>{submittingSurvey ? 'Submitting…' : 'Submit feedback'}</button></div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>{pendingSurvey.survey.allowSkip && !pendingSurvey.required && <button type="button" className="btn-koruna-outline" disabled={submittingSurvey} onClick={skipPendingSurvey}>Skip for now</button>}<button type="button" className="btn-koruna-solid" disabled={submittingSurvey} onClick={() => void submitPendingSurvey()}>{submittingSurvey ? 'Submitting…' : 'Submit feedback'}</button></div>
           </div>
         </div>
       )}
