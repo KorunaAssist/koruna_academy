@@ -43,6 +43,15 @@ before(async () => {
   const trainerMigration = await readFile(new URL('../supabase/migrations/202611100002_course_creator_trainer.sql', import.meta.url), 'utf8');
   await db.exec(trainerMigration);
   await db.exec(trainerMigration);
+  const creatorAssignmentMigration = await readFile(new URL('../supabase/migrations/202611180001_course_creator_assignment.sql', import.meta.url), 'utf8');
+  await db.exec(creatorAssignmentMigration);
+  await db.exec(creatorAssignmentMigration);
+  const creatorReassignmentMigration = await readFile(new URL('../supabase/migrations/202611180002_course_creator_reassignment.sql', import.meta.url), 'utf8');
+  await db.exec(creatorReassignmentMigration);
+  await db.exec(creatorReassignmentMigration);
+  const enforceCreatorMigration = await readFile(new URL('../supabase/migrations/202611180006_enforce_selected_course_creator.sql', import.meta.url), 'utf8');
+  await db.exec(enforceCreatorMigration);
+  await db.exec(enforceCreatorMigration);
   for (const [name, id] of Object.entries(ids)) {
     await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)', [id, `${name}@example.com`, JSON.stringify({ full_name: name, role: 'admin' })]);
   }
@@ -73,6 +82,50 @@ test('new courses store the authenticated creator as trainer and preserve traine
     assert.equal(updated.created_by, ids[user]);
     assert.equal(updated.trainer, user);
   }
+});
+
+test('admins can assign a new course to a trainer creator, while trainers cannot delegate ownership', async () => {
+  const { rows: [course] } = await asUser('admin',
+    "INSERT INTO public.courses(id,title,category,code,created_by,trainer) VALUES('assigned-creator','Assigned','Training','ASSIGNED',$1,'Forged') RETURNING created_by,trainer",
+    [ids.trainer]);
+  assert.equal(course.created_by, ids.trainer);
+  assert.equal(course.trainer, 'trainer');
+  await assert.rejects(asUser('trainer',
+    "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('delegated','Delegated','Training','DELEGATED',$1)",
+    [ids.otherTrainer]), /only for themselves/i);
+  await assert.rejects(asUser('admin',
+    "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('employee-creator','Employee','Training','EMPLOYEE',$1)",
+    [ids.employee]), /trainer or administrator/i);
+  const { rows: [updated] } = await asUser('admin',
+    "INSERT INTO public.courses(id,title,category,code,created_by,trainer) VALUES('assigned-creator','Updated','Training','ASSIGNED',$1,'Other') ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_by=excluded.created_by,trainer=excluded.trainer RETURNING created_by,trainer",
+    [ids.admin]);
+  assert.equal(updated.created_by, ids.admin);
+  assert.equal(updated.trainer, 'admin');
+});
+
+test('only administrators can reassign an existing course creator', async () => {
+  await asUser('admin',
+    "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('reassign-existing','Original','Training','REASSIGN',$1)",
+    [ids.trainer]);
+  const { rows: [adminChanged] } = await asUser('admin',
+    "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('reassign-existing','A reassigned','Training','REASSIGN',$1) ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_by=excluded.created_by,trainer=excluded.trainer RETURNING created_by,trainer",
+    [ids.otherTrainer]);
+  assert.equal(adminChanged.created_by, ids.otherTrainer);
+  assert.equal(adminChanged.trainer, 'otherTrainer');
+  const { rows: [trainerChanged] } = await asUser('otherTrainer',
+    "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('reassign-existing','Trainer update','Training','REASSIGN',$1) ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_by=excluded.created_by,trainer=excluded.trainer RETURNING created_by,trainer",
+    [ids.trainer]);
+  assert.equal(trainerChanged.created_by, ids.otherTrainer);
+  assert.equal(trainerChanged.trainer, 'otherTrainer');
+});
+
+test('an admin publishing with a normal update keeps the selected course creator', async () => {
+  await asUser('admin', "INSERT INTO public.courses(id,title,category,code,created_by) VALUES('publish-owner','Draft','Training','PUBLISH',$1)", [ids.admin]);
+  const { rows: [published] } = await asUser('admin',
+    "UPDATE public.courses SET title='Published',created_by=$1,trainer='Wrong admin name' WHERE id='publish-owner' RETURNING created_by,trainer",
+    [ids.trainer]);
+  assert.equal(published.created_by,ids.trainer);
+  assert.equal(published.trainer,'trainer');
 });
 
 test('assigned learners can save lessons and completion without changing staff fields', async () => {
