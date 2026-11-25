@@ -415,7 +415,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const catalogueSections = [
     { title: 'Assigned Courses', courses: filteredCourses.filter(course => isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) },
     { title: 'Done Courses', courses: filteredCourses.filter(course => currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) },
-    { title: 'All Courses ? Not Assigned', courses: filteredCourses.filter(course => !isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) }
+    { title: 'All Courses - Not Assigned', courses: filteredCourses.filter(course => !isAssignedToCurrentUser(course) && !currentUserProgress.some(p => p.courseId === course.id && p.progressPercent >= 100)) }
   ];
   // ==========================================
   // EMPLOYEE CAPABILITIES & EVENTS
