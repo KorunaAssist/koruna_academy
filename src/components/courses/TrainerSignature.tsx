@@ -12,5 +12,5 @@ export function TrainerSignature({ profileId, trainerName }: { profileId?: strin
     return () => { cancelled = true; };
   }, [profileId, trainerName]);
   if (!signature || signature.id !== profileId) return null;
-  return <img src={signature.image} alt="Trainer signature" style={{ position: 'absolute', top: '78%', left: '14%', width: '24%', height: '9%', objectFit: 'contain' }} />;
+  return <img src={signature.image} alt="Trainer signature" style={{ position: 'absolute', top: '79%', left: '14%', width: '24%', height: '6.5%', objectFit: 'contain', objectPosition: 'center bottom', zIndex: 1 }} />;
 }

@@ -31,7 +31,7 @@ function SignatureEditor({ user }: { user: DatabaseUser }) {
     <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy}
       aria-label={`${image ? 'Replace' : 'Upload'} signature for ${user.name}`}
       onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void save(file); }} />
-    <div className="as-cell-sub">PNG, JPEG or WebP, up to 500 KB. Transparent PNG recommended.</div>
+    <div className="as-cell-sub">PNG, JPEG or WebP, up to 500 KB. Near-white backgrounds are removed from PNG and JPEG signatures.</div>
     {image && <button type="button" className="as-btn" disabled={busy} onClick={() => void save(null)}>Remove signature</button>}
     <div role="status" className="as-cell-sub">{busy ? 'Saving signature…' : message}</div>
   </div>;
