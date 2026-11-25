@@ -14,6 +14,8 @@ import { CourseBannerHeader } from '../courses/CourseCard';
 import { isCourseAssigned } from '../../services/courseAccess';
 import { dashboardLearningStats } from '../../services/dashboardLearningStats';
 import { AssignedLearningPaths } from '../courses/AssignedLearningPaths';
+import { RecommendedCourses } from './RecommendedCourses';
+import { loadLearningStreak } from '../../services/learningStreak';
 
 export interface KorunaAcademyDashboardProps {
   view?: 'dashboard' | 'my_courses';
@@ -40,31 +42,14 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 }) => {
   const userName = userSession.name || 'Jessica Timon';
   const [completionFilter, setCompletionFilter] = React.useState<'all' | 'incomplete' | 'completed'>('all');
+  const [streak,setStreak] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    let active = true;
+    setStreak(null);
+    loadLearningStreak().then(value => { if (active) setStreak(value); }).catch(() => { if (active) setStreak(null); });
+    return () => { active = false; };
+  },[userSession.id,userProgress]);
 
-  // Helper to find existing course or create a fallback course object for study view
-  const getCourseById = (id: string, fallbackTitle: string, category: string): Course => {
-    const existing = courses.find((c) => c.id === id || c.title.toLowerCase().includes(fallbackTitle.toLowerCase()));
-    if (existing) return existing;
-    return {
-      id,
-      title: fallbackTitle,
-      category,
-      rating: 4.8,
-      code: `MORT-${id.toUpperCase()}`,
-      level: 'Intermediate',
-      description: `Comprehensive training program covering ${fallbackTitle}.`,
-      imgBg: '#e0f2fe',
-      trainer: userSession.name || 'Koruna Academy Trainer',
-      lessons: [
-        { id: `${id}-l1`, title: 'Module 1: Foundations & Fundamentals', content: 'Welcome to this essential training module.' },
-        { id: `${id}-l2`, title: 'Module 2: Key Operational Frameworks', content: 'Detailed analysis of workflows and standards.' },
-        { id: `${id}-l3`, title: 'Module 3: Advanced Practical Applications', content: 'Hands-on scenarios and real-world case studies.' }
-      ],
-      quiz: [
-        { question: 'What is the primary compliance requirement discussed in this module?', options: ['Document Verification', 'Manual Override', 'Bypass Review', 'None of the above'], correctAnswer: 0 }
-      ]
-    };
-  };
 
   // Continue Learning must show a course the signed-in learner actually opened.
   // Do not fall back to assigned or catalogue courses: those have not necessarily
@@ -97,9 +82,6 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
     : undefined;
   const recentCourseCreatorName = recentCourseCreator?.name || recentUndoneCourse?.trainer || 'Koruna Academy';
 
-  const courseVaSpecialist = getCourseById('c5', 'Senior Mortgage: VA Loan Specialist', 'Mortgage');
-  const courseLeading = getCourseById('c6', 'Leading Without Authority', 'Leadership');
-  const courseFinance = getCourseById('c7', 'Financial Planning Foundations', 'Finance');
 
   // Calculate total user learning hours dynamically from stored database progress
   const totalUserLearningHours = userProgs.reduce((sum, p) => {
@@ -325,7 +307,6 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
       <div className="koruna-subview-wrapper">
         <h1>My Courses</h1>
         <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Your assigned courses, deadlines, and learning progress.</p>
-        <AssignedLearningPaths userSession={userSession} onOpen={() => onTabChange('learning_path')}/>
         <div role="group" aria-label="Filter courses by completion" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
           {(['all', 'incomplete', 'completed'] as const).map(filter => (
             <button key={filter} type="button" className={completionFilter === filter ? 'btn-catalogue-action-solid' : 'btn-catalogue-action-outline'} aria-pressed={completionFilter === filter} onClick={() => setCompletionFilter(filter)}>
@@ -340,7 +321,6 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
 
   return (
     <div style={{ padding: '1.75rem 2rem 3rem 2rem', backgroundColor: '#f8fafc', minHeight: '100%' }}>
-      <AssignedLearningPaths userSession={userSession} onOpen={() => onTabChange('learning_path')}/>
       {/* HEADER ROW */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -348,7 +328,7 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
             Welcome back, {userName.split(' ')[0]}
           </h1>
           <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0.25rem 0 0 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            You're on your <span style={{ color: '#be185d', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><Flame size={15} fill="#be185d" /> 12-day</span> Learning streak!
+            {streak === null ? 'Learning streak unavailable' : streak === 0 ? 'Start learning today to build your streak.' : <>You're on a <span style={{ color: '#be185d', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><Flame size={15} fill="#be185d" /> {streak}-day</span> learning streak!</>}
           </p>
         </div>
 
@@ -601,121 +581,11 @@ export const KorunaAcademyDashboard: React.FC<KorunaAcademyDashboardProps> = ({
         {renderAssignedCourses('incomplete')}
       </div>
 
+      <AssignedLearningPaths userSession={userSession} onOpen={() => onTabChange('learning_path')}/>
+
       {/* BOTTOM TWO-COLUMN LAYOUT */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
-        {/* LEFT COLUMN: RECOMMENDED FOR YOU */}
-        <div>
-          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', letterSpacing: '-0.01em' }}>
-            Recommended For You
-          </h2>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Rec 1 */}
-            <div
-              onClick={() => onStartStudy(courseVaSpecialist)}
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                padding: '1rem 1.25rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1.25rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <CourseBannerHeader
-                course={{ ...courseVaSpecialist, imageUrl: undefined }}
-                height="60px"
-                borderRadius="10px"
-                style={{ width: '80px', flexShrink: 0 }}
-              />
-              <div style={{ flex: 1 }}>
-                <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
-                  Mortgage
-                </span>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
-                  Senior Mortgage: VA Loan Specialist
-                </h4>
-                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  4h 30m · 12 lessons
-                </div>
-              </div>
-            </div>
-
-            {/* Rec 2 (Highlighted with magenta border matching screenshot) */}
-            <div
-              onClick={() => onStartStudy(courseLeading)}
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                border: '2px solid #be185d',
-                padding: '1rem 1.25rem',
-                boxShadow: '0 2px 8px rgba(190, 24, 93, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1.25rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <CourseBannerHeader
-                course={{ ...courseLeading, imageUrl: undefined }}
-                height="60px"
-                borderRadius="10px"
-                style={{ width: '80px', flexShrink: 0 }}
-              />
-              <div style={{ flex: 1 }}>
-                <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
-                  Leadership
-                </span>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
-                  Leading Without Authority
-                </h4>
-                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  3h 10m · 8 lessons
-                </div>
-              </div>
-            </div>
-
-            {/* Rec 3 */}
-            <div
-              onClick={() => onStartStudy(courseFinance)}
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                padding: '1rem 1.25rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1.25rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <CourseBannerHeader
-                course={{ ...courseFinance, imageUrl: undefined }}
-                height="60px"
-                borderRadius="10px"
-                style={{ width: '80px', flexShrink: 0 }}
-              />
-              <div style={{ flex: 1 }}>
-                <span style={{ backgroundColor: '#ccfbf1', color: '#0d9488', fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '50px', display: 'inline-block', marginBottom: '0.3rem' }}>
-                  Finance
-                </span>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
-                  Financial Planning Foundations
-                </h4>
-                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  2h 45m · 6 lessons
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RecommendedCourses userSession={userSession} courses={courses} users={users} progress={userProgress} onStartStudy={onStartStudy} onBrowse={() => onTabChange('catalog_courses')} />
 
         {/* RIGHT COLUMN: UPCOMING DEADLINES & RECENT CERTIFICATES */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
