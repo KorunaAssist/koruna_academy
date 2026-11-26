@@ -821,7 +821,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                       <button type="button" className="cc-btn sm danger" onClick={() => setCourseQuiz([])}><Trash2 size={13} /> Clear</button>
                     </>
                   )}
-                  <button type="button" className="cc-btn sm primary" onClick={addQuizQuestionField}><Plus size={13} /> Question</button>
+                  <button type="button" className="cc-btn sm primary" onClick={addQuizQuestionField}><Plus size={13} /> Add question</button>
                 </div>
               </div>
 
@@ -894,6 +894,7 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                             ))}
                           </div>
                         )}
+                        <label className="cc-f"><span>Answer explanation (optional)</span><textarea className="cc-in" rows={2} value={q.explanation || ''} placeholder="Explain why this answer is correct..." onChange={e => updateQuiz(qi, { explanation: e.target.value })}/></label>
                       </div>
                     );
                   })}
@@ -1190,6 +1191,7 @@ const CSS = `
 .cc-card-h>span{display:inline-flex;align-items:center;gap:.4rem;flex-wrap:wrap}
 .cc-card-h.between{justify-content:space-between}
 .cc-card-h svg{color:var(--p)}
+.cc-card-h .cc-btn.primary svg{color:#fff}
 .cc-plain{background:none;border:0;padding:0}
 .cc-tip-trigger-row{display:flex;justify-content:flex-end;margin-bottom:-.25rem}
 .cc-tips-card{background:#fff;border:1px solid #f3d4e3;border-radius:10px;padding:.85rem;display:flex;flex-direction:column;gap:.75rem}

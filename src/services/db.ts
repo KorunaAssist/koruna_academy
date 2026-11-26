@@ -22,6 +22,7 @@ export interface QuizQuestion {
   moduleTitle?: string;
   type?: 'multiple_choice' | 'true_false' | 'short_answer';
   answerText?: string;
+  explanation?: string;
 }
 
 export interface CourseAssignment {

@@ -48,7 +48,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({
           onClick={() => {
             setEditingCourseId(null);
             setCourseForm({ title: '', category: 'Mortgage', code: '', level: 'Beginner', description: '', imgBg: '#e0f2fe', imageUrl: '', trainer: userSession?.name || '' });
-            setCourseLessons([{ title: 'Lesson 1: Introduction', content: 'Enter lesson text here.', moduleId: 'm1', moduleTitle: 'Introduction' }]);
+            setCourseLessons([{ title: 'Lesson 1: Introduction', content: '', moduleId: 'm1', moduleTitle: 'Introduction' }]);
             setCourseQuiz([]);
             setCourseModules([{ id: 'm1', title: 'Introduction' }]);
             setAssignedUserEmails([]);

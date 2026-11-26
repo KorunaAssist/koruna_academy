@@ -381,7 +381,7 @@ export const AdminSuite: React.FC<AdminSuiteProps> = ({
       documentContent: '',
       acknowledgmentText: 'I have read, understood, and agree to the policies and terms outlined in this document.'
     });
-    setCourseLessons([{ id: 'c_new-l1', title: 'Lesson 1: Introduction', content: 'Enter lesson text here.', moduleId: 'm1', moduleTitle: 'Introduction' }]);
+    setCourseLessons([{ id: 'c_new-l1', title: 'Lesson 1: Introduction', content: '', moduleId: 'm1', moduleTitle: 'Introduction' }]);
     setCourseQuiz([]);
     setAssignedUserEmails([]);
     setAssignmentDueDate(defaultDueDate);
