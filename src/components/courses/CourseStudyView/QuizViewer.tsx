@@ -68,6 +68,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
 
   const [currentQ, setCurrentQ] = useState(0);
   const [celebrationDismissed, setCelebrationDismissed] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(false);
   const totalSeconds = getTimerSeconds(quiz?.length ?? 0);
   const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -104,6 +105,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
     if (setQuizTextAnswers) setQuizTextAnswers({});
     setQuizSubmitted(false);
     setCelebrationDismissed(false);
+    setShowAnswers(false);
     setCurrentQ(0);
     setTimeLeft(totalSeconds);
     startTimer();
@@ -134,6 +136,16 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
 
   /* ─── RESULTS VIEW ─── */
   if (quizSubmitted) {
+    if (quizPassed && showAnswers) return <section style={{ background:'#fff',border:'1px solid #e2e8f0',borderRadius:16,padding:'1.5rem',display:'grid',gap:'1rem' }} aria-labelledby="quiz-review-title">
+      <div><h2 id="quiz-review-title">Quiz answer review</h2><p>{studyingCourse.title} · Score: {quizScore}%</p></div>
+      {quiz.map((question,index) => {
+        const short = question.type === 'short_answer' || (!question.options?.length && !!question.answerText);
+        const answer = short ? question.answerText : question.options?.[question.correctAnswer];
+        const yours = short ? quizTextAnswers[index] : question.options?.[quizAnswers[index]];
+        return <article key={index} style={{border:'1px solid #e2e8f0',borderRadius:10,padding:'1rem',display:'grid',gap:8}}><strong>{index+1}. {question.question}</strong><span>Your answer: {yours || 'Not answered'}</span><span style={{color:'#166534'}}>Correct answer: {answer || 'Not available'}</span>{question.explanation?.trim() && <p style={{margin:0,color:'#475569'}}><strong>Explanation:</strong> {question.explanation}</p>}</article>;
+      })}
+      <div><button type="button" className="btn-koruna-solid" onClick={() => setShowAnswers(false)}>Back to results</button></div>
+    </section>;
     if (quizPassed && studyingCourse.requiresCertification !== false && !celebrationDismissed) {
       return (
         <div className="koruna-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quiz-celebration-title">
@@ -141,6 +153,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
             <CompletionCelebration />
             <h2 id="quiz-celebration-title" style={{ color: '#831843' }}>Congratulations!</h2>
             <p style={{ color: '#475569', lineHeight: 1.6 }}>You passed the quiz for <strong>{studyingCourse.title}</strong> with a score of <strong>{quizScore}%</strong>. Great work!</p>
+            <button type="button" className="btn-koruna-outline" onClick={() => setShowAnswers(true)} style={{ marginRight: '0.75rem' }}>Show answers</button>
             <button type="button" autoFocus onClick={() => setCelebrationDismissed(true)} style={{ background: '#be185d', color: '#fff', padding: '0.85rem 1.5rem', border: 0, borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>View certificate</button>
           </div>
         </div>
@@ -213,6 +226,7 @@ export const QuizViewer: React.FC<QuizViewerProps> = ({
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button type="button" className="btn-koruna-outline" onClick={() => setShowAnswers(true)}>Show answers</button>
               <button
                 onClick={onDone || (() => { if (setStudyingCourse) setStudyingCourse(null); else setActiveLessonIdx(0); })}
                 style={{

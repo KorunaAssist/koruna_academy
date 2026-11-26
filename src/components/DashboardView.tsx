@@ -211,7 +211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     acknowledgmentText: 'I have read, understood, and agree to the policies and terms outlined in this document.'
   });
   const [courseLessons, setCourseLessons] = useState<(Omit<Lesson, 'id'> & { id?: string })[]>([
-    { title: 'Lesson 1: Introduction', content: 'Enter lesson text here.' }
+    { title: 'Lesson 1: Introduction', content: '' }
   ]);
   const [courseQuiz, setCourseQuiz] = useState<QuizQuestion[]>([]);
   const [courseModules, setCourseModules] = useState<{ id: string; title: string }[]>([
@@ -837,7 +837,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       documentContent: '',
       acknowledgmentText: 'I have read, understood, and agree to the policies and terms outlined in this document.'
     });
-    setCourseLessons([{ title: 'Lesson 1: Introduction', content: 'Enter lesson text here.', moduleId: 'm1', moduleTitle: 'Introduction' }]);
+    setCourseLessons([{ title: 'Lesson 1: Introduction', content: '', moduleId: 'm1', moduleTitle: 'Introduction' }]);
     setCourseQuiz([]);
     setCourseModules([{ id: 'm1', title: 'Introduction' }]);
     setAssignedUserEmails([]);
@@ -1302,7 +1302,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           documentContent: '',
                           acknowledgmentText: 'I have read, understood, and agree to the policies and terms outlined in this document.'
                         });
-                        setCourseLessons([{ title: 'Lesson 1: Introduction', content: 'Enter lesson text here.' }]);
+                        setCourseLessons([{ title: 'Lesson 1: Introduction', content: '' }]);
                         setCourseQuiz([{ question: 'What is the correct answer?', options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 0 }]);
                         setAssignedUserEmails([]);
                         onTabChange('admin_suite');
