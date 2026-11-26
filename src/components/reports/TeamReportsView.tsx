@@ -9,7 +9,7 @@ import './teamReports.css';
 
 type Tab = 'overview' | 'assignments' | 'practicals' | 'teams';
 export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' }: { userSession: UserSessionData; onChanged?: () => Promise<void>; initialTab?: Tab }) {
-  const canManageTeams = userSession.role==='admin' || userSession.role==='team_leader';
+  const canManageTeams = userSession.role==='admin' || userSession.role==='trainer' || userSession.role==='team_leader';
   const [data,setData] = useState<TeamReport>(emptyTeamReport);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
@@ -50,7 +50,7 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to complete the action.'); }
     finally { setBusy(false); }
   };
-  const isAdminOverview = userSession.role==='admin' && tab==='overview';
+  const isAdminOverview = (userSession.role==='admin' || userSession.role==='trainer') && tab==='overview';
   const employeeIds = new Set(data.team_candidates.map(person => person.id));
   const eligibleEmployees = data.learners.filter(learner => employeeIds.has(learner.id));
   const leaderIds = new Set(data.managers.map(person => person.id));
@@ -91,7 +91,7 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
       {(tab==='overview' || tab==='practicals') && <div className="tr-filters">
         <label className="lp-field">Employee<input type="search" placeholder="Search name or email" value={query} onChange={e => setQuery(e.target.value)}/></label>
         <label className="lp-field">Department<select value={department} onChange={e => setDepartment(e.target.value)}><option value="">All departments</option>{departments.map(d => <option key={d}>{d}</option>)}</select></label>
-        {userSession.role==='admin' && !!data.managers.length && <label className="lp-field">Team leader<select value={manager} onChange={e => setManager(e.target.value)}><option value="">All teams</option>{data.managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>}
+        {(userSession.role==='admin' || userSession.role==='trainer') && !!data.managers.length && <label className="lp-field">Team leader<select value={manager} onChange={e => setManager(e.target.value)}><option value="">All teams</option>{data.managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>}
         <label className="lp-field">Roadmap<select value={roadmap} onChange={e => setRoadmap(e.target.value)}><option value="">All roadmaps</option>{paths.map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label className="lp-field">Learning status<select value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option><option value="not_started">Not started</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="overdue">Overdue</option></select></label>
       </div>}
@@ -139,7 +139,7 @@ export function TeamReportsView({ userSession,onChanged,initialTab = 'overview' 
           <h2>{userSession.role==='team_leader' ? 'Select your team members' : 'Assign a team member'}</h2>
           <p className="lp-muted">{userSession.role==='team_leader' ? 'Add employees to your own team to view their progress and assign training. You can also remove your own memberships.' : 'Choose a team leader and the employee to add.'} Adding an employee does not remove them from any other team.</p>
           <div className="tr-filters">
-            {userSession.role==='admin' ? <label className="lp-field">Team leader<select required disabled={busy} value={team.managerId} onChange={e => setTeam({ ...team,managerId: e.target.value })}><option value="">Choose team leader</option>{data.managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label> : <p>Team leader: <strong>{userSession.name}</strong></p>}
+            {userSession.role!=='team_leader' ? <label className="lp-field">Team leader<select required disabled={busy} value={team.managerId} onChange={e => setTeam({ ...team,managerId: e.target.value })}><option value="">Choose team leader</option>{data.managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label> : <p>Team leader: <strong>{userSession.name}</strong></p>}
             <label className="lp-field">Employee<select required disabled={busy} value={team.memberId} onChange={e => setTeam({ ...team,memberId: e.target.value })}><option value="">Choose employee</option>{data.team_candidates.filter(l => !data.team_members.some(t => t.member_id===l.id && t.manager_id===(userSession.role==='team_leader' ? userSession.id : team.managerId))).map(l => <option key={l.id} value={l.id}>{l.name} · {l.email}</option>)}</select></label>
           </div>
           <div><button className="lp-button primary" disabled={busy || !data.managers.length || !team.memberId}>Add Team Member</button></div>
