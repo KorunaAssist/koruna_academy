@@ -173,6 +173,35 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
   const [docPreview, setDocPreview] = useState(false);
   const [quizTest, setQuizTest] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [customCategories,setCustomCategories] = useState<string[]>([]);
+  const [newCategory,setNewCategory] = useState('');
+  const [addingCategory,setAddingCategory] = useState(false);
+  const [showCategoryModal,setShowCategoryModal] = useState(false);
+  const [savingCategory,setSavingCategory] = useState(false);
+  const [categoryError,setCategoryError] = useState('');
+  useEffect(() => {
+    let active = true;
+    if (isSupabaseConfigured()) void supabase.from('course_categories').select('name').order('name').then(({data,error}) => {
+      if (!active) return;
+      if (error) setCategoryError('Unable to load saved categories. Apply the course categories migration.');
+      else setCustomCategories((data || []).map(row => row.name));
+    });
+    return () => { active = false; };
+  },[]);
+  const addCategory = async () => {
+    const name = newCategory.trim();
+    if (!name || name.length > 80) { setCategoryError('Enter a category name (up to 80 characters).'); return; }
+    const existing = [...CATEGORIES,...customCategories,...courses.map(course => course.category)].find(value => value?.toLowerCase() === name.toLowerCase());
+    if (existing) { setCourseForm((current:any) => ({...current,category:existing})); setNewCategory(''); setAddingCategory(false); setCategoryError(''); return; }
+    if (!isSupabaseConfigured()) { setCategoryError('Connect Supabase to save categories.'); return; }
+    setSavingCategory(true); setCategoryError('');
+    try {
+      const {error} = await supabase.from('course_categories').insert({name});
+      if (error) throw error;
+      setCustomCategories(current => [...current,name]); setCourseForm((current:any) => ({...current,category:name})); setNewCategory(''); setAddingCategory(false);
+    } catch (error) { setCategoryError(error instanceof Error ? error.message : 'Unable to save this category.'); }
+    finally { setSavingCategory(false); }
+  };
   const [survey,setSurvey] = useState<CourseSurvey>({ enabled:false,requiredForCertificate:false,allowSkip:true,anonymous:false,questions:[] });
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number | string>>({});
   const cardImageRef = useRef<HTMLInputElement>(null);
@@ -519,12 +548,17 @@ export const ContentCreatorView: React.FC<ContentCreatorViewProps> = ({
                   <input className="cc-in" required value={courseForm.code} onChange={(e) => patch({ code: e.target.value })}
                     placeholder={isDocument ? 'DOC-POL-2026' : 'MORT-101'} />
                 </label>
-                <label className="cc-f">
+                <div className="cc-f">
                   <span>Category</span>
-                  <select className="cc-in" value={courseForm.category} onChange={(e) => patch({ category: e.target.value })}>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c === 'AI' ? 'AI / Technology' : c}</option>)}
-                  </select>
-                </label>
+                  <button type="button" className="cc-in" style={{textAlign:'left',cursor:'pointer'}} onClick={() => setShowCategoryModal(true)}>{courseForm.category || 'Select category'} <ChevronDown size={14} style={{float:'right'}}/></button>
+                </div>
+                {showCategoryModal && <div className="cc-filter-modal" role="dialog" aria-modal="true" aria-labelledby="cc-category-title" onClick={() => { if (!savingCategory) setShowCategoryModal(false); }} onKeyDown={event => { if (event.key === 'Escape' && !savingCategory) setShowCategoryModal(false); }}><div className="cc-filter-modal-box" onClick={event => event.stopPropagation()}>
+                  <div className="cc-filter-modal-head"><div><h3 id="cc-category-title">Select category</h3><p>Choose a category for this course or add a new one.</p></div><button type="button" className="cc-btn sm ghost" aria-label="Close category selection" disabled={savingCategory} onClick={() => setShowCategoryModal(false)}><X size={16}/></button></div>
+                  <div className="cc-filter-group"><strong>Categories</strong><div className="cc-filter-chips" style={{maxHeight:'240px',overflowY:'auto'}}>{Array.from(new Set([...CATEGORIES,...customCategories,...courses.map(course => course.category),courseForm.category].filter(Boolean))).map(category => <button type="button" key={category} className={courseForm.category === category ? 'selected' : ''} aria-pressed={courseForm.category === category} onClick={() => patch({category})}>{category === 'AI' ? 'AI / Technology' : category}</button>)}</div></div>
+                  {!addingCategory ? <div><button type="button" className="cc-btn sm" onClick={() => setAddingCategory(true)}><Plus size={13}/> Add category</button></div> : <div className="cc-row"><input className="cc-in grow" aria-label="New category name" maxLength={80} value={newCategory} onChange={event => setNewCategory(event.target.value)} placeholder="New category name"/><button type="button" className="cc-btn sm primary" disabled={savingCategory} onClick={() => void addCategory()}>{savingCategory ? 'Saving…' : 'Save'}</button><button type="button" className="cc-btn sm" disabled={savingCategory} onClick={() => { setAddingCategory(false);setCategoryError(''); }}>Cancel</button></div>}
+                  {categoryError && <small role="alert" style={{color:'#b42318'}}>{categoryError}</small>}
+                  <div className="cc-filter-modal-actions"><span/><button type="button" className="cc-btn primary" disabled={savingCategory} onClick={() => setShowCategoryModal(false)}>Done</button></div>
+                </div></div>}
                 <label className="cc-f">
                   <span>Level</span>
                   <select className="cc-in" value={courseForm.level} onChange={(e) => patch({ level: e.target.value as any })}>
